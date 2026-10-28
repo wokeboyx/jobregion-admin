@@ -1,29 +1,37 @@
 import { useState } from "react"
-import { CheckCircle2 } from "lucide-react"
+import { BadgeCheck, Check } from "lucide-react"
 
-import { Dialog } from "@/components/ui/dialog"
+import { Dialog, DialogTextButton } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Avatar } from "@/components/ui/avatar"
-import { OutlineBadge } from "@/components/ui/status-pill"
-import { DocumentViewerDialog, DOC_ICON } from "@/components/document-preview"
+import { DocumentSurface, DocumentTypeLabel, DocumentViewerDialog } from "@/components/document-preview"
+import { photoFor } from "@/lib/photos"
 import type { UserAccount, UserDocument } from "@/lib/mock-data"
 
-function DocPanel({ title, doc, onZoom }: { title: string; doc: UserDocument; onZoom: (doc: UserDocument) => void }) {
-  const Icon = DOC_ICON[doc.type]
+function DocPanel({
+  doc,
+  photo,
+  wide,
+  onZoom,
+}: {
+  doc: UserDocument
+  photo?: string
+  wide?: boolean
+  onZoom: (doc: UserDocument) => void
+}) {
   return (
-    <div>
-      <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</p>
-      <button
-        type="button"
-        onClick={() => onZoom(doc)}
-        className={`flex h-56 w-full items-center justify-center rounded-lg bg-gradient-to-br ${doc.cover} ring-1 ring-inset ring-black/5 transition-transform hover:scale-[1.01]`}
-      >
-        <Icon className="size-10 text-foreground/25" />
-      </button>
-    </div>
+    <button type="button" onClick={() => onZoom(doc)} className="group block w-full text-left">
+      <DocumentTypeLabel doc={doc} className="mb-2" />
+      <div className="overflow-hidden rounded-xl border border-border transition-shadow group-hover:shadow-card">
+        <DocumentSurface doc={doc} photo={photo} large className={wide ? "aspect-[5/2] rounded-none" : "aspect-[4/3] rounded-none"} />
+      </div>
+      <p className="mt-2 text-body1 font-semibold text-foreground group-hover:underline">{doc.label}</p>
+      <p className="text-sm text-muted-foreground">Uploaded {doc.uploadedDate}</p>
+    </button>
   )
 }
 
+/** Airbnb-style ID check: who the person is, what they've confirmed, then their ID and selfie side by side. */
 function VerificationReviewDialog({
   open,
   onClose,
@@ -39,60 +47,72 @@ function VerificationReviewDialog({
 }) {
   const [zoomDoc, setZoomDoc] = useState<UserDocument | null>(null)
 
+  const photo = photoFor(user.name)
   const idDoc = user.documents.find((d) => d.type === "id")
   const selfieDoc = user.documents.find((d) => d.type === "selfie")
   const businessDoc = user.documents.find((d) => d.type === "business")
 
   return (
-    <Dialog open={open} onClose={onClose} width="w-[720px]">
-      <div className="max-h-[85vh] overflow-y-auto p-5">
-        <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Avatar name={user.name} className="size-11 shrink-0 text-sm" />
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-base font-semibold text-foreground">{user.name}</p>
-                {user.roles.map((r) => (
-                  <OutlineBadge key={r} label={r} />
-                ))}
-              </div>
-              <div className="mt-1 space-y-0.5">
-                {user.verificationHistory.map((step) => (
-                  <p key={step.label} className="flex items-center gap-1.5 text-xs text-success">
-                    <CheckCircle2 className="size-3.5 shrink-0" />
-                    {step.label} — {step.date}
-                  </p>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="flex shrink-0 gap-2">
-            <Button
-              variant="destructive"
-              size="sm"
-              className="bg-destructive px-5 text-white hover:bg-destructive/90"
-              onClick={onReject}
-            >
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="Review verification"
+      width="w-[760px]"
+      footer={
+        <>
+          <DialogTextButton onClick={onClose}>Cancel</DialogTextButton>
+          <div className="flex gap-2">
+            <Button variant="outline" size="lg" onClick={onReject}>
               Reject
             </Button>
-            <Button size="sm" className="px-5" onClick={onApprove}>
+            <Button variant="brand" size="lg" onClick={onApprove}>
               Approve
             </Button>
           </div>
+        </>
+      }
+    >
+      <div className="p-6">
+        <div className="flex items-center gap-4">
+          <Avatar name={user.name} className="size-16 text-lg" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1">
+              <p className="heading-card">{user.name}</p>
+              {user.verification === "success" && <BadgeCheck className="size-4 fill-foreground text-white" />}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {user.roles.join(" & ")} · {user.location} · Joined {user.dateJoined}
+            </p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {idDoc && <DocPanel title={`ID Document — ${idDoc.label}`} doc={idDoc} onZoom={setZoomDoc} />}
-          {selfieDoc && <DocPanel title="Selfie" doc={selfieDoc} onZoom={setZoomDoc} />}
-          {businessDoc && (
-            <div className="sm:col-span-2">
-              <DocPanel title={`Business Document — ${businessDoc.label}`} doc={businessDoc} onZoom={setZoomDoc} />
-            </div>
-          )}
+        <div className="mt-6 border-t border-border pt-6">
+          <p className="heading-card">What {user.name.split(" ")[0]} has confirmed</p>
+          <ul className="mt-3 space-y-2">
+            {user.verificationHistory.map((step) => (
+              <li key={step.label} className="flex items-center gap-3 text-body1 text-foreground">
+                <Check className="size-4 shrink-0" strokeWidth={2.5} />
+                <span className="flex-1">{step.label}</span>
+                <span className="text-sm text-muted-foreground">{step.date}</span>
+              </li>
+            ))}
+          </ul>
         </div>
+
+        {(idDoc || selfieDoc || businessDoc) && (
+          <div className="mt-6 grid grid-cols-1 gap-6 border-t border-border pt-6 sm:grid-cols-2">
+            {idDoc && <DocPanel doc={idDoc} onZoom={setZoomDoc} />}
+            {selfieDoc && <DocPanel doc={selfieDoc} photo={photo} onZoom={setZoomDoc} />}
+            {businessDoc && (
+              <div className="sm:col-span-2">
+                <DocPanel doc={businessDoc} wide onZoom={setZoomDoc} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      <DocumentViewerDialog doc={zoomDoc} onClose={() => setZoomDoc(null)} />
+      <DocumentViewerDialog doc={zoomDoc} onClose={() => setZoomDoc(null)} selfiePhoto={photo} />
     </Dialog>
   )
 }

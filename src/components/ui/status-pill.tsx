@@ -3,10 +3,10 @@ import { cn } from "@/lib/utils"
 export type Status = "neutral" | "success" | "warning" | "destructive"
 
 const CHIP_CLASSES: Record<Status, string> = {
-  neutral: "bg-muted-foreground/16 text-muted-foreground",
-  success: "bg-success/16 text-success",
-  warning: "bg-warning/16 text-warning",
-  destructive: "bg-destructive/16 text-destructive",
+  neutral: "bg-muted-strong text-muted-foreground",
+  success: "bg-success/12 text-success",
+  warning: "bg-[#fff5cc] text-warning",
+  destructive: "bg-destructive/8 text-destructive",
 }
 
 function StatusPill({
@@ -22,7 +22,7 @@ function StatusPill({
     <span
       data-slot="status-pill"
       className={cn(
-        "inline-flex w-fit items-center rounded-xs px-1.5 text-xs font-bold tracking-[-0.12px] h-6",
+        "inline-flex h-6 w-fit items-center rounded-full px-2.5 text-xs font-semibold whitespace-nowrap",
         CHIP_CLASSES[status],
         className,
       )}

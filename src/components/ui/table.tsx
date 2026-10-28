@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 
 function Table({ className, ...props }: ComponentProps<"table">) {
   return (
-    <div className="w-full overflow-x-auto rounded-sm bg-card shadow-[0px_0px_0px_1px_rgba(0,0,0,0.05)]">
+    <div className="w-full overflow-x-auto bg-card">
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}
@@ -18,7 +18,7 @@ function TableHeader({ className, ...props }: ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("bg-muted", className)}
+      className={cn("border-b border-border", className)}
       {...props}
     />
   )
@@ -49,7 +49,7 @@ function TableHead({ className, ...props }: ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "h-14 px-3 text-left align-middle text-sm font-medium text-foreground-strong first:pl-6 last:pr-6",
+        "h-12 px-3 text-left align-middle text-xs font-semibold text-muted-foreground first:pl-6 last:pr-6",
         className,
       )}
       {...props}
@@ -62,7 +62,7 @@ function TableCell({ className, ...props }: ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "px-3 py-5 align-middle text-sm text-muted-foreground first:pl-6 last:pr-6",
+        "px-3 py-3 align-middle text-sm text-muted-foreground first:pl-6 last:pr-6",
         className,
       )}
       {...props}

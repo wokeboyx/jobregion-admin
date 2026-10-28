@@ -19,9 +19,9 @@ function ToolbarButton({
       title={label}
       aria-label={label}
       onClick={onClick}
-      className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-card hover:text-foreground"
+      className="flex size-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted"
     >
-      <Icon className="size-4" />
+      <Icon className="size-[18px]" />
     </button>
   )
 }
@@ -79,8 +79,8 @@ function MarkdownEditor({
   }
 
   return (
-    <div className="overflow-hidden rounded-md border border-border">
-      <div className="flex items-center justify-between border-b border-border bg-muted px-2 py-1.5">
+    <div className="overflow-hidden rounded-xl border border-input transition-colors focus-within:border-foreground">
+      <div className="flex items-center justify-between border-b border-border bg-card px-2 py-2">
         <div className="flex items-center gap-0.5">
           <ToolbarButton icon={Bold} label="Bold" onClick={() => insertWrap("**", "**", "bold text")} />
           <ToolbarButton icon={Italic} label="Italic" onClick={() => insertWrap("*", "*", "italic text")} />
@@ -89,13 +89,13 @@ function MarkdownEditor({
           <ToolbarButton icon={ImageIcon} label="Insert image" onClick={() => fileInputRef.current?.click()} />
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
         </div>
-        <div className="flex items-center gap-1 rounded-md border border-border bg-card p-0.5">
+        <div className="flex items-center gap-1 pr-1">
           <button
             type="button"
             onClick={() => setMode("write")}
             className={cn(
-              "rounded px-2 py-1 text-xs font-medium",
-              mode === "write" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              "h-8 rounded-full px-3.5 text-body2 font-semibold transition-colors",
+              mode === "write" ? "bg-foreground text-white" : "text-foreground hover:bg-muted",
             )}
           >
             Write
@@ -104,8 +104,8 @@ function MarkdownEditor({
             type="button"
             onClick={() => setMode("preview")}
             className={cn(
-              "rounded px-2 py-1 text-xs font-medium",
-              mode === "preview" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              "h-8 rounded-full px-3.5 text-body2 font-semibold transition-colors",
+              mode === "preview" ? "bg-foreground text-white" : "text-foreground hover:bg-muted",
             )}
           >
             Preview
@@ -120,11 +120,11 @@ function MarkdownEditor({
           onChange={(e) => onChange(e.target.value)}
           rows={rows}
           placeholder={placeholder}
-          className="w-full resize-none bg-card p-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+          className="block w-full resize-y bg-card px-5 py-4 text-body1 leading-7 text-foreground outline-none placeholder:text-muted-foreground"
         />
       ) : (
         <div
-          className="min-h-[200px] bg-card p-3 text-sm text-foreground [&_em]:italic [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:mb-1.5 [&_h3]:text-base [&_h3]:font-semibold [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded-md [&_li]:mb-1 [&_p]:mb-2 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-5"
+          className="min-h-[240px] bg-card px-5 py-4 text-body1 leading-7 text-foreground [&_em]:italic [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:mb-1.5 [&_h3]:text-base [&_h3]:font-semibold [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded-xl [&_li]:mb-1 [&_p]:mb-2 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-5"
           dangerouslySetInnerHTML={{
             __html:
               renderMarkdown(value) || '<p class="text-muted-foreground">Nothing to preview yet.</p>',

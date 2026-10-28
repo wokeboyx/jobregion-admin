@@ -1,129 +1,111 @@
-import { useState } from "react"
 import { NavLink } from "react-router-dom"
 import {
   LayoutDashboard,
   Users,
   Briefcase,
+  Flag,
+  Star,
   FolderTree,
   Megaphone,
-  CreditCard,
+  Crown,
   Newspaper,
   LifeBuoy,
   ShieldCheck,
   History,
-  ChevronDown,
+  Inbox,
+  Plug,
+  Wallet,
+  Send,
+  SlidersHorizontal,
+  type LucideIcon,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { users, jobs, admins, currentAdminId } from "@/lib/mock-data"
-import { Avatar } from "@/components/ui/avatar"
-import { MyProfileDialog } from "@/components/my-profile-dialog"
-import { LogoMark } from "./logo-mark"
+import { users, jobs } from "@/lib/mock-data"
+import { openReportCount, flaggedReviewCount } from "@/lib/trust-data"
 
 const pendingVerification = users.filter((u) => u.verification === "warning").length
 const jobsPendingReview = jobs.filter((j) => j.statusLabel === "Pending Review").length
 
-const PLATFORM_ITEMS = [
-  { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
-  { to: "/users", label: "Users", icon: Users, badge: pendingVerification },
-  { to: "/jobs", label: "Jobs", icon: Briefcase, badge: jobsPendingReview },
-  { to: "/categories", label: "Categories", icon: FolderTree },
-  { to: "/promotions", label: "Promotions", icon: Megaphone },
-  { to: "/subscriptions", label: "Subscriptions", icon: CreditCard },
-  { to: "/blog", label: "Blog", icon: Newspaper },
-  { to: "/support", label: "Support Center", icon: LifeBuoy },
+type Item = { to: string; label: string; icon: LucideIcon; end?: boolean; count?: number }
+
+/** Every admin section, grouped like the web app's Airbnb-style settings list. */
+const GROUPS: { title?: string; items: Item[] }[] = [
+  {
+    items: [
+      { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+      { to: "/users", label: "Users", icon: Users, count: pendingVerification },
+      { to: "/jobs", label: "Jobs", icon: Briefcase, count: jobsPendingReview },
+      { to: "/reports", label: "Reports", icon: Flag, count: openReportCount },
+      { to: "/inbox", label: "Inbox", icon: Inbox },
+    ],
+  },
+  {
+    title: "Marketplace",
+    items: [
+      { to: "/reviews", label: "Reviews & hires", icon: Star, count: flaggedReviewCount },
+      { to: "/categories", label: "Categories", icon: FolderTree },
+      { to: "/job-sources", label: "Job sources", icon: Plug },
+    ],
+  },
+  {
+    title: "Money",
+    items: [
+      { to: "/payments", label: "Payments", icon: Wallet },
+      { to: "/promotions", label: "Promotions", icon: Megaphone },
+      { to: "/subscriptions", label: "Pro membership", icon: Crown },
+    ],
+  },
+  {
+    title: "Content",
+    items: [
+      { to: "/blog", label: "Blog", icon: Newspaper },
+      { to: "/support", label: "Help Center", icon: LifeBuoy },
+      { to: "/announcements", label: "Announcements", icon: Send },
+    ],
+  },
+  {
+    title: "Team",
+    items: [
+      { to: "/admins", label: "Admins and roles", icon: ShieldCheck },
+      { to: "/audit-log", label: "Audit log", icon: History },
+      { to: "/settings", label: "Marketplace rules", icon: SlidersHorizontal },
+    ],
+  },
 ]
 
-const ADMIN_ITEMS = [
-  { to: "/admins", label: "Admin Management", icon: ShieldCheck },
-  { to: "/audit-log", label: "Audit Log", icon: History },
-]
-
-const currentAdmin = admins.find((a) => a.id === currentAdminId)!
-
+/** Plain rows with big icons, the current one on a grey pill in bold; counts in brand orange. */
 function Sidebar() {
-  const [profileOpen, setProfileOpen] = useState(false)
-
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col bg-card">
-      <div className="flex h-16 shrink-0 items-center gap-2 px-4">
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary">
-          <LogoMark className="text-sm" />
-        </div>
-        <span className="text-base font-semibold text-foreground">JobRegion</span>
-      </div>
-
-      <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-2">
-        <div className="flex flex-col gap-0.5">
-          {PLATFORM_ITEMS.map(({ to, label, icon: Icon, end, badge }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2.5 rounded-md px-3 py-2 text-[14px] font-medium transition-colors",
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )
-              }
-            >
-              <Icon className="size-4 shrink-0" />
-              <span className="flex-1">{label}</span>
-              {!!badge && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-cta px-1 text-[10px] font-semibold text-primary-foreground">
-                  {badge}
-                </span>
-              )}
-            </NavLink>
-          ))}
-        </div>
-
-        <div className="flex flex-col gap-0.5">
-          <div className="px-1">
-            <div className="h-px w-full bg-border" />
+    <aside className="sticky top-20 h-[calc(100vh-80px)] w-[272px] shrink-0 overflow-y-auto border-r border-border bg-card px-4 py-6">
+      <nav aria-label="Admin" className="flex flex-col gap-5">
+        {GROUPS.map((group, i) => (
+          <div key={group.title ?? i} className="flex flex-col gap-0.5">
+            {group.title && <p className="px-4 pb-2 text-xs font-semibold text-muted-foreground">{group.title}</p>}
+            {group.items.map(({ to, label, icon: Icon, end, count }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-4 rounded-md px-4 py-2.5 text-body1 text-foreground transition-colors",
+                    isActive ? "bg-muted-strong font-semibold" : "hover:bg-muted",
+                  )
+                }
+              >
+                <Icon className="size-5 shrink-0" strokeWidth={1.75} />
+                <span className="flex-1">{label}</span>
+                {!!count && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-caption font-bold text-white">
+                    {count}
+                  </span>
+                )}
+              </NavLink>
+            ))}
           </div>
-          <p className="pl-3 pb-1 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-            Administration
-          </p>
-          {ADMIN_ITEMS.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2.5 rounded-md px-3 py-2 text-[14px] font-medium transition-colors",
-                  isActive
-                    ? "bg-brand-cta-tint text-brand-cta"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )
-              }
-            >
-              <Icon className="size-4 shrink-0" />
-              {label}
-            </NavLink>
-          ))}
-        </div>
+        ))}
       </nav>
-
-      <div className="flex h-[60px] shrink-0 flex-col">
-        <div className="h-px w-full bg-border" />
-        <button
-          type="button"
-          onClick={() => setProfileOpen(true)}
-          className="flex flex-1 items-center gap-2 rounded-md p-3 text-left hover:bg-muted"
-        >
-          <Avatar name={currentAdmin.name} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-foreground">{currentAdmin.name}</p>
-            <p className="text-xs text-muted-foreground">{currentAdmin.role}</p>
-          </div>
-          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-        </button>
-      </div>
-
-      <MyProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
     </aside>
   )
 }

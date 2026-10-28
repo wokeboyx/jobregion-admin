@@ -1,15 +1,44 @@
-import { useRef, useState, type ChangeEvent } from "react"
+import { useRef, useState, type ChangeEvent, type ReactNode } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { Upload } from "lucide-react"
+import { ImagePlus } from "lucide-react"
 
-import { BackButton } from "@/components/back-button"
 import { Button } from "@/components/ui/button"
-import { StatusPill } from "@/components/ui/status-pill"
+import type { Status } from "@/components/ui/status-pill"
+import { PageHeader } from "@/components/page-header"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
 import { MarkdownEditor } from "@/components/markdown-editor"
-import { blogPosts, BLOG_CATEGORIES } from "@/lib/mock-data"
+import { SelectMenu } from "@/components/ui/select-menu"
+import { BLOG_CATEGORIES } from "@/lib/mock-data"
+import { BLOG_AUTHORS as AUTHORS, blogStore as blogPosts } from "./generated"
 
-const AUTHORS = ["Chiamaka Obi", "Aisha Bello", "Grace Nwankwo"]
+const DOT: Record<Status, string> = {
+  success: "bg-success",
+  warning: "bg-warning",
+  destructive: "bg-destructive",
+  neutral: "bg-muted-foreground",
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-body2 font-semibold text-foreground">{label}</p>
+      {children}
+    </div>
+  )
+}
+
+function Select({ value, onChange, options }: { value: string; onChange: (value: string) => void; options: string[] }) {
+  return <SelectMenu variant="field" value={value} onChange={onChange} options={options} />
+}
+
+function FactRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3 text-body2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right text-foreground">{children}</span>
+    </div>
+  )
+}
 
 function BlogEditPage() {
   const { id } = useParams()
@@ -32,8 +61,7 @@ function BlogEditPage() {
   if (!isNew && !existingPost) {
     return (
       <div>
-        <BackButton to="/blog" label="Back to Blog" />
-        <p className="text-sm text-muted-foreground">Post not found.</p>
+        <PageHeader title="Post not found" description="This post may have been deleted." back={{ to: "/blog", label: "Back to blog" }} />
       </div>
     )
   }
@@ -75,143 +103,142 @@ function BlogEditPage() {
     }
   }
 
+  const save = () => {
+    persist(status, statusLabel)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+    if (isNew) navigate("/blog")
+  }
+
+  const publish = () => {
+    setStatus("success")
+    setStatusLabel("Published")
+    persist("success", "Published")
+    if (isNew) navigate("/blog")
+  }
+
+  const unpublish = () => {
+    setStatus("neutral")
+    setStatusLabel("Archived")
+    persist("neutral", "Archived")
+  }
+
   return (
-    <div className="mx-auto max-w-3xl">
-      <BackButton to="/blog" label="Back to Blog" />
+    <div>
+      <PageHeader
+        title={isNew ? "Write a post" : "Edit post"}
+        description={isNew ? "Drafts stay private until you publish them." : undefined}
+        back={{ to: "/blog", label: "Back to blog" }}
+      />
 
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <p className="text-lg font-semibold text-foreground">{isNew ? "New post" : "Edit post"}</p>
-          <StatusPill status={status} label={statusLabel} />
-        </div>
-        {!isNew && (
-          <Button
-            variant="destructive"
-            size="sm"
-            className="bg-destructive text-white hover:bg-destructive/90"
-            onClick={() => setDeleteOpen(true)}
-          >
-            Delete
-          </Button>
-        )}
-      </div>
+      <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_372px] lg:gap-20">
+        <div className="min-w-0">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Give your post a title"
+            aria-label="Title"
+            className="heading-page w-full border-0 bg-transparent p-0 text-foreground outline-none placeholder:text-[#b0b0b0]"
+          />
 
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <p className="text-[13px] font-medium text-foreground">Cover image</p>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex h-40 w-full items-center justify-center overflow-hidden rounded-md border border-dashed border-border bg-muted"
-          >
-            {coverImageUrl ? (
-              <img src={coverImageUrl} alt="Cover" className="h-full w-full object-cover" />
-            ) : (
-              <span className="flex flex-col items-center gap-1.5 text-muted-foreground">
-                <Upload className="size-5" />
-                <span className="text-xs">Click to upload a cover image</span>
-              </span>
-            )}
-          </button>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverSelect} />
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <p className="text-[13px] font-medium text-foreground">Title</p>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Post title"
-              className="h-10 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-brand-cta"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <p className="text-[13px] font-medium text-foreground">Category</p>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="h-10 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground outline-none focus-visible:border-brand-cta"
+          <div className="mt-8">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="group relative flex aspect-[16/7] w-full items-center justify-center overflow-hidden rounded-xl border border-input bg-muted transition-colors hover:border-foreground"
             >
-              {BLOG_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+              {coverImageUrl ? (
+                <>
+                  <img src={coverImageUrl} alt="Cover" className="size-full object-cover" />
+                  <span className="absolute bottom-4 right-4 rounded-full bg-card px-4 py-2 text-body2 font-semibold text-foreground shadow-[0_1px_4px_rgb(0_0_0/0.18)]">
+                    Change cover
+                  </span>
+                </>
+              ) : (
+                <span className="flex flex-col items-center gap-2 text-foreground">
+                  <ImagePlus className="size-8" strokeWidth={1.5} />
+                  <span className="text-body1 font-semibold underline underline-offset-2">Add a cover photo</span>
+                </span>
+              )}
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverSelect} />
           </div>
-          <div className="space-y-1.5">
-            <p className="text-[13px] font-medium text-foreground">Author</p>
-            <select
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-              className="h-10 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground outline-none focus-visible:border-brand-cta"
-            >
-              {AUTHORS.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
 
-        <div className="space-y-1.5">
-          <p className="text-[13px] font-medium text-foreground">Body</p>
-          <MarkdownEditor value={body} onChange={setBody} placeholder="Write the post in Markdown…" />
-        </div>
+          <section className="mt-8 border-t border-border pt-8">
+            <h2 className="heading-section">Story</h2>
+            <p className="mt-1 text-body2 text-muted-foreground">Write in Markdown. The preview shows how it looks on the website.</p>
+            <div className="mt-6">
+              <MarkdownEditor value={body} onChange={setBody} rows={16} placeholder="Write the post in Markdown…" />
+            </div>
+          </section>
 
-        {!isNew && existingPost && existingPost.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {existingPost.tags.map((t) => (
-              <span key={t} className="rounded-full border border-border px-2.5 py-0.5 text-xs font-medium text-foreground">
-                {t}
-              </span>
-            ))}
-          </div>
-        )}
-
-        <div className="flex items-center gap-2 pt-2">
-          <Button
-            size="sm"
-            onClick={() => {
-              persist(status, statusLabel)
-              setSaved(true)
-              setTimeout(() => setSaved(false), 2000)
-              if (isNew) navigate(`/blog`)
-            }}
-          >
-            {isNew ? "Create draft" : "Save changes"}
-          </Button>
-          {!isPublished && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setStatus("success")
-                setStatusLabel("Published")
-                persist("success", "Published")
-                if (isNew) navigate("/blog")
-              }}
-            >
-              Publish
-            </Button>
+          {!isNew && existingPost && existingPost.tags.length > 0 && (
+            <section className="mt-8 border-t border-border pt-8">
+              <h2 className="heading-section mb-4">Tags</h2>
+              <div className="flex flex-wrap gap-2">
+                {existingPost.tags.map((t) => (
+                  <span key={t} className="rounded-full border border-input px-4 py-2 text-body2 font-medium text-foreground">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </section>
           )}
-          {isPublished && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setStatus("neutral")
-                setStatusLabel("Archived")
-                persist("neutral", "Archived")
-              }}
-            >
-              Unpublish
-            </Button>
-          )}
-          {saved && <span className="text-xs text-muted-foreground">Saved.</span>}
         </div>
+
+        <aside>
+          <div className="sticky top-28 rounded-xl border border-border p-6 shadow-card">
+            <div className="flex items-center gap-2">
+              <span className={`size-2.5 rounded-full ${DOT[status]}`} />
+              <p className="heading-card">{statusLabel}</p>
+            </div>
+            <p className="mt-1 text-body2 text-muted-foreground">
+              {isPublished ? "Live on the website and app." : "Only admins can see this post."}
+            </p>
+
+            <div className="mt-6 space-y-5">
+              <Field label="Category">
+                <Select value={category} onChange={setCategory} options={BLOG_CATEGORIES} />
+              </Field>
+              <Field label="Author">
+                <Select value={author} onChange={setAuthor} options={AUTHORS} />
+              </Field>
+            </div>
+
+            <div className="mt-6 divide-y divide-border border-y border-border">
+              <FactRow label={isPublished ? "Published" : "Scheduled for"}>{existingPost?.date ?? "Not scheduled"}</FactRow>
+              <FactRow label="Views">{(existingPost?.views ?? 0).toLocaleString()}</FactRow>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              {isPublished ? (
+                <>
+                  <Button size="lg" className="w-full" onClick={save}>
+                    Save changes
+                  </Button>
+                  <Button size="lg" variant="outline" className="w-full" onClick={unpublish}>
+                    Unpublish
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button size="lg" className="w-full" onClick={publish}>
+                    Publish
+                  </Button>
+                  <Button size="lg" variant="outline" className="w-full" onClick={save}>
+                    Save draft
+                  </Button>
+                </>
+              )}
+              {!isNew && (
+                <Button variant="destructive" className="w-full" onClick={() => setDeleteOpen(true)}>
+                  Delete post
+                </Button>
+              )}
+              {saved && <p className="text-center text-body2 text-muted-foreground">Saved.</p>}
+            </div>
+          </div>
+        </aside>
       </div>
 
       <ConfirmationDialog

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { Calendar, ChevronDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useMenuAlign } from "@/lib/use-menu-align"
 
 export type DatePreset = "7d" | "14d" | "30d" | "90d" | "this_month" | "last_month" | "custom"
 
@@ -39,6 +40,7 @@ function DateRangeDropdown({
   const [draftStart, setDraftStart] = useState(customRange?.start ?? "")
   const [draftEnd, setDraftEnd] = useState(customRange?.end ?? "")
   const ref = useRef<HTMLDivElement>(null)
+  const { menuRef, side } = useMenuAlign<HTMLDivElement>(open, "left")
 
   useEffect(() => {
     if (!open) return
@@ -54,7 +56,7 @@ function DateRangeDropdown({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-9 items-center gap-2 whitespace-nowrap rounded-md border border-border bg-card px-3 text-sm font-medium text-foreground outline-none focus-visible:border-brand-cta"
+        className="flex h-9 items-center gap-2 whitespace-nowrap rounded-md border border-input bg-card px-3 text-sm font-medium text-foreground outline-none focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-foreground"
       >
         <Calendar className="size-4 text-muted-foreground" />
         {formatRangeLabel(preset, customRange)}
@@ -62,7 +64,7 @@ function DateRangeDropdown({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-1 w-64 rounded-md border border-border bg-card p-2 shadow-[0px_10px_15px_rgba(0,0,0,0.08)]">
+        <div ref={menuRef} className={cn("absolute top-full z-20 mt-1 w-64 rounded-lg bg-card p-2 shadow-dropdown", side === "right" ? "right-0" : "left-0")}>
           <div className="flex flex-col">
             {PRESETS.map((p) => (
               <button
@@ -90,14 +92,14 @@ function DateRangeDropdown({
                 type="date"
                 value={draftStart}
                 onChange={(e) => setDraftStart(e.target.value)}
-                className="h-8 w-full rounded-md border border-border bg-card px-1.5 text-xs text-foreground outline-none focus-visible:border-brand-cta"
+                className="h-8 w-full rounded-md border border-input bg-card px-1.5 text-xs text-foreground outline-none focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-foreground"
               />
               <span className="text-xs text-muted-foreground">to</span>
               <input
                 type="date"
                 value={draftEnd}
                 onChange={(e) => setDraftEnd(e.target.value)}
-                className="h-8 w-full rounded-md border border-border bg-card px-1.5 text-xs text-foreground outline-none focus-visible:border-brand-cta"
+                className="h-8 w-full rounded-md border border-input bg-card px-1.5 text-xs text-foreground outline-none focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-foreground"
               />
             </div>
             <button

@@ -1,322 +1,209 @@
-import { useState } from "react"
-import { ChevronRight, ChevronDown, Folder, FolderTree, Tag, X } from "lucide-react"
+import { useMemo, useState } from "react"
+import { useNavigate } from "react-router-dom"
+import { FolderTree } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { ModuleHeader } from "@/components/module-header"
+import { PageHeader } from "@/components/page-header"
+import { PillTabs } from "@/components/pill-tabs"
+import { FilterBar } from "@/components/filter-bar"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
-import { FormDialog, FormField } from "@/components/form-dialog"
 import { EmptyState, ErrorState } from "@/components/page-state"
+import { Pagination } from "@/components/pagination"
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
+import { BulkAction, BulkBar, Checkbox, SelectHead, SortHead } from "@/components/data-table"
+import { cn } from "@/lib/utils"
+import { useTable } from "@/lib/use-table"
 import { usePreviewState } from "@/lib/preview-state"
-import { jobCategories as initialCategories, type JobCategory } from "@/lib/mock-data"
+import type { JobCategory } from "@/lib/mock-data"
+import { AddCategoryDialog } from "./category-form"
+import { CategoryIconTile } from "./icons"
+import { categoryActions, subcategoryJobs, useCategories } from "./store"
 
-function GhostAction({ label, destructive, onClick }: { label: string; destructive?: boolean; onClick?: () => void }) {
+type StatusKey = "all" | "active" | "hidden"
+
+function CategoryStatus({ hidden }: { hidden?: boolean }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-md px-2 py-1.5 text-[13px] font-bold hover:bg-muted ${
-        destructive ? "text-destructive" : "text-foreground"
-      }`}
-    >
-      {label}
-    </button>
+    <span className="inline-flex items-center gap-2 whitespace-nowrap text-body2 text-foreground">
+      <span className={cn("size-2 rounded-full", hidden ? "bg-muted-foreground/50" : "bg-success")} />
+      {hidden ? "Hidden" : "Active"}
+    </span>
   )
 }
 
 function CategoriesPage() {
-  const [categories, setCategories] = useState<JobCategory[]>(initialCategories)
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(
-    Object.fromEntries(initialCategories.map((c) => [c.id, true])),
-  )
+  const navigate = useNavigate()
+  const categories = useCategories()
+  const [status, setStatus] = useState<StatusKey>("all")
+  const [search, setSearch] = useState("")
+  const [adding, setAdding] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null)
 
-  const [addCategoryOpen, setAddCategoryOpen] = useState(false)
-  const [draftSubcategories, setDraftSubcategories] = useState<string[]>([""])
-  const [editCategory, setEditCategory] = useState<JobCategory | null>(null)
-  const [deleteCategoryId, setDeleteCategoryId] = useState<string | null>(null)
-
-  const [addSubcategoryFor, setAddSubcategoryFor] = useState<string | null>(null)
-  const [editSubcategory, setEditSubcategory] = useState<{ categoryId: string; id: string; name: string } | null>(
-    null,
-  )
-  const [deleteSubcategory, setDeleteSubcategory] = useState<{ categoryId: string; id: string } | null>(null)
-
-  const removeCategory = (id: string) => {
-    setCategories((cats) => cats.filter((c) => c.id !== id))
-  }
-
-  const removeSubcategory = (categoryId: string, subcategoryId: string) => {
-    setCategories((cats) =>
-      cats.map((c) =>
-        c.id !== categoryId ? c : { ...c, subcategories: c.subcategories.filter((s) => s.id !== subcategoryId) },
-      ),
+  const searched = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return categories
+    return categories.filter((c) =>
+      `${c.name} ${c.description} ${c.subcategories.map((s) => s.name).join(" ")}`.toLowerCase().includes(q),
     )
-  }
+  }, [categories, search])
 
   const { state: previewState, setState: setPreviewState } = usePreviewState()
-  const isEmpty = previewState === "empty" || previewState === "no-results" || categories.length === 0
+  const rows = useMemo(() => {
+    if (previewState === "no-results") return []
+    return searched.filter((c) => (status === "all" ? true : status === "hidden" ? c.hidden : !c.hidden))
+  }, [searched, status, previewState])
 
-  return (
-    <div>
-      <ModuleHeader
-        title="Job categories"
-        description="Organize the categories and subcategories used to classify job listings."
-        action={<Button onClick={() => setAddCategoryOpen(true)}>+ Add category</Button>}
-      />
+  const t = useTable(rows, {
+    getId: (c: JobCategory) => c.id,
+    sorters: {
+      name: (c) => c.name,
+      subcategories: (c) => c.subcategories.length,
+      jobs: (c) => subcategoryJobs(c),
+      updated: (c) => c.updated ?? "",
+    },
+    pageSize: 25,
+  })
 
-      {previewState === "error" ? (
+  const tabs = [
+    { key: "all" as const, label: "All", count: searched.length },
+    { key: "active" as const, label: "Active", count: searched.filter((c) => !c.hidden).length },
+    { key: "hidden" as const, label: "Hidden", count: searched.filter((c) => c.hidden).length },
+  ]
+  const filtered = search.trim() !== "" || status !== "all"
+  const selectedIds = t.selection.rows.map((c) => c.id)
+
+  const header = (
+    <PageHeader
+      title="Categories"
+      description="What people pick when they post a job. Open a category to manage its subcategories."
+      actions={<Button onClick={() => setAdding(true)}>Add category</Button>}
+    />
+  )
+
+  if (previewState === "error")
+    return (
+      <div>
+        {header}
         <ErrorState onRetry={() => setPreviewState("default")} />
-      ) : isEmpty ? (
+      </div>
+    )
+
+  if (previewState === "empty" || categories.length === 0)
+    return (
+      <div>
+        {header}
         <EmptyState
           icon={FolderTree}
           title="No categories yet"
-          description="Create a category to start organizing job listings."
-          action={<Button onClick={() => setAddCategoryOpen(true)}>+ Add category</Button>}
+          description="Add a category so people can file their jobs under it."
+          action={<Button onClick={() => setAdding(true)}>Add category</Button>}
         />
-      ) : (
-        <div className="space-y-3">
-          {categories.map((category) => (
-            <div key={category.id} className="space-y-2">
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setExpanded((e) => ({ ...e, [category.id]: !e[category.id] }))}
-                    className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-                  >
-                    {expanded[category.id] ? (
-                      <ChevronDown className="size-4" />
-                    ) : (
-                      <ChevronRight className="size-4" />
-                    )}
-                  </button>
-                  <Folder className="size-4 text-muted-foreground" />
-                  <p className="text-base font-medium text-foreground">{category.name}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-muted-foreground">
-                    {category.subcategories.length} subcategor{category.subcategories.length === 1 ? "y" : "ies"}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <GhostAction label="Add subcategory" onClick={() => setAddSubcategoryFor(category.id)} />
-                    <GhostAction label="Edit" onClick={() => setEditCategory(category)} />
-                    <GhostAction label="Delete" destructive onClick={() => setDeleteCategoryId(category.id)} />
-                  </div>
-                </div>
-              </div>
-  
-              {expanded[category.id] && (
-                <div className="ml-8 space-y-2">
-                  {category.subcategories.map((sub) => (
-                    <div
-                      key={sub.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-3"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Tag className="size-4 text-muted-foreground" />
-                        <p className="text-sm font-medium text-foreground">{sub.name}</p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <GhostAction
-                          label="Edit"
-                          onClick={() => setEditSubcategory({ categoryId: category.id, id: sub.id, name: sub.name })}
-                        />
-                        <GhostAction
-                          label="Delete"
-                          destructive
-                          onClick={() => setDeleteSubcategory({ categoryId: category.id, id: sub.id })}
-                        />
-                      </div>
-                    </div>
-                  ))}
-  
-                  {category.subcategories.length === 0 && (
-                    <div className="flex h-12 items-center justify-between rounded-xl border border-dashed border-muted-foreground p-4">
-                      <p className="text-[13px] text-muted-foreground">No subcategories yet.</p>
-                      <button
-                        type="button"
-                        onClick={() => setAddSubcategoryFor(category.id)}
-                        className="text-xs font-bold text-foreground"
-                      >
-                        Add subcategory
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+        {adding && <AddCategoryDialog onClose={() => setAdding(false)} onSave={(d) => navigate(`/categories/${categoryActions.add(d)}`)} />}
+      </div>
+    )
 
-      <FormDialog
-        open={addCategoryOpen}
-        onClose={() => {
-          setAddCategoryOpen(false)
-          setDraftSubcategories([""])
-        }}
-        title="Add category"
-        description="Create a new top-level category and optionally add its subcategories now."
-        submitLabel="Create category"
-        onSubmit={() => {
-          const input = document.getElementById("new-category-name") as HTMLInputElement | null
-          const name = input?.value.trim()
-          if (!name) return
-          const id = `CAT-${Date.now()}`
-          const subcategories = draftSubcategories
-            .map((s) => s.trim())
-            .filter(Boolean)
-            .map((s, i) => ({ id: `SUB-${Date.now()}-${i}`, name: s }))
-          setCategories((cats) => [...cats, { id, name, subcategories }])
-          setExpanded((e) => ({ ...e, [id]: true }))
-          setDraftSubcategories([""])
-        }}
-      >
-        <FormField label="Category name">
-          <input
-            id="new-category-name"
-            placeholder="e.g. Home Services"
-            className="h-9 w-full rounded-md border border-border bg-card px-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:border-brand-cta"
-          />
-        </FormField>
+  return (
+    <div>
+      {header}
 
-        <div className="space-y-1.5">
-          <p className="text-[13px] font-medium text-foreground">Subcategories (optional)</p>
-          <div className="space-y-2">
-            {draftSubcategories.map((value, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <input
-                  value={value}
-                  onChange={(e) =>
-                    setDraftSubcategories((subs) => subs.map((s, idx) => (idx === i ? e.target.value : s)))
-                  }
-                  placeholder={`Subcategory ${i + 1}`}
-                  className="h-9 w-full rounded-md border border-border bg-card px-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:border-brand-cta"
-                />
-                {draftSubcategories.length > 1 && (
-                  <button
-                    type="button"
-                    aria-label="Remove subcategory"
-                    onClick={() => setDraftSubcategories((subs) => subs.filter((_, idx) => idx !== i))}
-                    className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-                  >
-                    <X className="size-4" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+      <div className="mb-6 flex flex-col items-stretch gap-6">
+        <PillTabs options={tabs} value={status} onChange={setStatus} />
+        <FilterBar searchPlaceholder="Search categories and subcategories" searchValue={search} onSearchChange={setSearch} />
+      </div>
+
+      <div className="mb-2 flex items-center gap-3 text-body2 text-muted-foreground">
+        <span>
+          <span className="font-semibold text-foreground">{t.total.toLocaleString()}</span> {t.total === 1 ? "category" : "categories"}
+        </span>
+        {filtered && (
           <button
             type="button"
-            onClick={() => setDraftSubcategories((subs) => [...subs, ""])}
-            className="text-xs font-bold text-foreground"
+            onClick={() => {
+              setSearch("")
+              setStatus("all")
+            }}
+            className="font-semibold text-foreground underline underline-offset-2"
           >
-            + Add another subcategory
+            Clear filters
           </button>
+        )}
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="border-t border-border py-16 text-center">
+          <p className="heading-card">No categories match</p>
+          <p className="mt-1 text-body2 text-muted-foreground">Try a different search or show all categories.</p>
         </div>
-      </FormDialog>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <SelectHead all={t.selection.allOnPage} some={t.selection.someOnPage} onToggle={t.selection.togglePage} />
+              <SortHead label="Category" sortKey="name" sort={t.sort} onSort={t.toggleSort} />
+              <TableHead>Description</TableHead>
+              <SortHead label="Subcategories" sortKey="subcategories" sort={t.sort} onSort={t.toggleSort} align="right" />
+              <SortHead label="Jobs" sortKey="jobs" sort={t.sort} onSort={t.toggleSort} align="right" />
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {t.pagedRows.map((c) => (
+              <TableRow key={c.id} onClick={() => navigate(`/categories/${c.id}`)} className="cursor-pointer">
+                <TableCell>
+                  <Checkbox checked={t.selection.isSelected(c.id)} onChange={() => t.selection.toggle(c.id)} label={`Select ${c.name}`} />
+                </TableCell>
+                <TableCell>
+                  <div className={cn("flex items-center gap-3", c.hidden && "opacity-60")}>
+                    <CategoryIconTile icon={c.icon} />
+                    <span className="whitespace-nowrap text-body2 font-semibold text-foreground">{c.name}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="max-w-[260px]">
+                  <span className="block truncate text-body2" title={c.description}>
+                    {c.description || "No description yet"}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-foreground">{c.subcategories.length}</TableCell>
+                <TableCell className="text-right tabular-nums text-foreground">{subcategoryJobs(c).toLocaleString()}</TableCell>
+                <TableCell>
+                  <CategoryStatus hidden={c.hidden} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
-      <FormDialog
-        open={editCategory !== null}
-        onClose={() => setEditCategory(null)}
-        title="Edit category"
-        description="Update the category name."
-        submitLabel="Save changes"
-        onSubmit={() => {
-          const input = document.getElementById("edit-category-name") as HTMLInputElement | null
-          const name = input?.value.trim()
-          if (!name || !editCategory) return
-          setCategories((cats) => cats.map((c) => (c.id === editCategory.id ? { ...c, name } : c)))
-        }}
-      >
-        <FormField label="Category name">
-          <input
-            id="edit-category-name"
-            defaultValue={editCategory?.name}
-            className="h-9 w-full rounded-md border border-border bg-card px-2.5 text-sm text-foreground outline-none focus-visible:border-brand-cta"
-          />
-        </FormField>
-      </FormDialog>
-
-      <FormDialog
-        open={addSubcategoryFor !== null}
-        onClose={() => setAddSubcategoryFor(null)}
-        title="Add subcategory"
-        description="Create a new subcategory under this category."
-        submitLabel="Create subcategory"
-        onSubmit={() => {
-          const input = document.getElementById("new-subcategory-name") as HTMLInputElement | null
-          const name = input?.value.trim()
-          if (!name || !addSubcategoryFor) return
-          setCategories((cats) =>
-            cats.map((c) =>
-              c.id !== addSubcategoryFor
-                ? c
-                : { ...c, subcategories: [...c.subcategories, { id: `SUB-${Date.now()}`, name }] },
-            ),
-          )
-        }}
-      >
-        <FormField label="Subcategory name">
-          <input
-            id="new-subcategory-name"
-            placeholder="e.g. Cleaning"
-            className="h-9 w-full rounded-md border border-border bg-card px-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:border-brand-cta"
-          />
-        </FormField>
-      </FormDialog>
-
-      <FormDialog
-        open={editSubcategory !== null}
-        onClose={() => setEditSubcategory(null)}
-        title="Edit subcategory"
-        description="Update the subcategory name."
-        submitLabel="Save changes"
-        onSubmit={() => {
-          const input = document.getElementById("edit-subcategory-name") as HTMLInputElement | null
-          const name = input?.value.trim()
-          if (!name || !editSubcategory) return
-          setCategories((cats) =>
-            cats.map((c) =>
-              c.id !== editSubcategory.categoryId
-                ? c
-                : {
-                    ...c,
-                    subcategories: c.subcategories.map((s) => (s.id === editSubcategory.id ? { ...s, name } : s)),
-                  },
-            ),
-          )
-        }}
-      >
-        <FormField label="Subcategory name">
-          <input
-            id="edit-subcategory-name"
-            defaultValue={editSubcategory?.name}
-            className="h-9 w-full rounded-md border border-border bg-card px-2.5 text-sm text-foreground outline-none focus-visible:border-brand-cta"
-          />
-        </FormField>
-      </FormDialog>
-
-      <ConfirmationDialog
-        open={deleteCategoryId !== null}
-        onClose={() => setDeleteCategoryId(null)}
-        tone="destructive"
-        title="Delete this category?"
-        description="Its subcategories will be deleted with it. This cannot be undone."
-        confirmLabel="Delete category"
-        onConfirm={() => {
-          if (deleteCategoryId) removeCategory(deleteCategoryId)
-        }}
+      <Pagination
+        page={t.page}
+        totalPages={t.totalPages}
+        onPageChange={t.setPage}
+        total={t.total}
+        pageSize={t.pageSize}
+        onPageSizeChange={t.setPageSize}
+        noun="categories"
       />
 
+      <BulkBar count={t.selection.count} total={t.total} onSelectAll={t.selection.selectAll} onClear={t.selection.clear}>
+        <BulkAction onClick={() => categoryActions.setHidden(selectedIds, true)}>Hide</BulkAction>
+        <BulkAction onClick={() => categoryActions.setHidden(selectedIds, false)}>Show</BulkAction>
+        <BulkAction tone="danger" onClick={() => setConfirmDelete(selectedIds)}>
+          Delete
+        </BulkAction>
+      </BulkBar>
+
+      {adding && <AddCategoryDialog onClose={() => setAdding(false)} onSave={(d) => navigate(`/categories/${categoryActions.add(d)}`)} />}
+
       <ConfirmationDialog
-        open={deleteSubcategory !== null}
-        onClose={() => setDeleteSubcategory(null)}
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
         tone="destructive"
-        title="Delete this subcategory?"
-        description="This cannot be undone."
-        confirmLabel="Delete subcategory"
+        title={`Delete ${confirmDelete?.length === 1 ? "this category" : `${confirmDelete?.length ?? 0} categories`}?`}
+        description="Their subcategories go too, and people can't pick them for new jobs. Jobs already posted keep their category. To keep them for later, hide them instead."
+        confirmLabel="Delete"
         onConfirm={() => {
-          if (deleteSubcategory) removeSubcategory(deleteSubcategory.categoryId, deleteSubcategory.id)
+          if (!confirmDelete) return
+          categoryActions.remove(confirmDelete)
+          t.selection.clear()
         }}
       />
     </div>

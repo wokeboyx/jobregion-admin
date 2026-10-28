@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { MoreHorizontal } from "lucide-react"
 
+import { useMenuAlign } from "@/lib/use-menu-align"
+
 export interface RowMenuItem {
   label: string
   onSelect: () => void
@@ -10,6 +12,7 @@ export interface RowMenuItem {
 function RowMenu({ items, children }: { items: RowMenuItem[]; children?: ReactNode }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const { menuRef, side } = useMenuAlign<HTMLDivElement>(open, "right")
 
   useEffect(() => {
     if (!open) return
@@ -35,8 +38,9 @@ function RowMenu({ items, children }: { items: RowMenuItem[]; children?: ReactNo
       </button>
       {open && (
         <div
+          ref={menuRef}
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-0 top-full z-20 mt-1 w-44 rounded-md border border-border bg-card py-1 shadow-[0px_10px_15px_rgba(0,0,0,0.08)]"
+          className={`absolute ${side === "right" ? "right-0" : "left-0"} top-full z-20 mt-1 w-48 rounded-lg bg-card py-2 shadow-dropdown`}
         >
           {items.map((item) => (
             <button
@@ -46,7 +50,7 @@ function RowMenu({ items, children }: { items: RowMenuItem[]; children?: ReactNo
                 item.onSelect()
                 setOpen(false)
               }}
-              className={`block w-full px-3 py-1.5 text-left text-[13px] font-medium hover:bg-muted ${
+              className={`block w-full px-4 py-2 text-left text-sm font-medium hover:bg-muted ${
                 item.destructive ? "text-destructive" : "text-foreground"
               }`}
             >

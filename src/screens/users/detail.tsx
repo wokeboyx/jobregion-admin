@@ -1,29 +1,34 @@
-import { useState } from "react"
-import { useParams, useNavigate } from "react-router-dom"
-import { CheckCircle2, MapPin } from "lucide-react"
+import { useMemo, useState, type ReactNode } from "react"
+import { useParams, useNavigate, useSearchParams } from "react-router-dom"
+import { AlertCircle, BadgeCheck, Briefcase, CalendarDays, Check, Info, Mail, MapPin, Phone, ShieldCheck } from "lucide-react"
 
-import { BackButton } from "@/components/back-button"
+import { PageHeader } from "@/components/page-header"
+import { PillTabs } from "@/components/pill-tabs"
+import { Tabs } from "@/components/tabs"
 import { Avatar } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
-import { StatusPill, OutlineBadge } from "@/components/ui/status-pill"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
 import { ReasonDialog } from "@/components/reason-dialog"
 import { DocumentGrid, DocumentViewerDialog } from "@/components/document-preview"
 import { VerificationReviewDialog } from "@/components/verification-review-dialog"
-import { Sparkline } from "@/components/sparkline-chart"
 import { cn } from "@/lib/utils"
+import { photoFor } from "@/lib/photos"
+import { getUserBucket, type UserAccount, type UserDocument, type UserBucket } from "@/lib/mock-data"
+import { findUser } from "./generated"
 import {
-  users,
-  getUserBucket,
-  getCoverGradient,
-  getProfileViewSummary,
-  getRecommendationCount,
-  type UserAccount,
-  type UserDocument,
-  type UserBucket,
-} from "@/lib/mock-data"
+  employerOf,
+  hiresAs,
+  jobPromotionsOf,
+  postedJobsOf,
+  profilePromotionsOf,
+  reviewsAbout,
+  seekerOf,
+  type Side,
+} from "./profiles"
+import { getUserStats } from "./user-stats"
+import { HireTable, IconRow, InfoRow, Pills, PromotionTable, ReviewList, Section, StatusDot, SubSection } from "./detail-parts"
+import { EmployerOverview, PostedJobsTable, SeekerOverview } from "./side-profiles"
+import { ProfileAnalytics } from "./profile-analytics"
 
 const REJECT_REASONS = [
   "Blurry or unreadable ID photo",
@@ -40,170 +45,41 @@ const REMOVE_REASONS = [
   "Other",
 ]
 
-type DetailTab = "account" | "info" | "worker" | "employer" | "promotions" | "analytics"
+type DetailTab = "overview" | "jobs" | "reviews" | "promotions" | "analytics" | "verification" | "info"
 
-const CHIP_TONES = {
-  brand: "bg-brand-cta-tint text-brand-cta",
-  primary: "bg-primary/10 text-primary",
-  success: "bg-success/12 text-success",
-} as const
-
-function ChipSection({
-  title,
-  items,
-  tone = "brand",
-}: {
-  title: string
-  items: string[]
-  tone?: keyof typeof CHIP_TONES
-}) {
-  return (
-    <section className="space-y-2">
-      <p className="text-sm font-semibold text-foreground">{title}</p>
-      {items.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
-          {items.map((i) => (
-            <span key={i} className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", CHIP_TONES[tone])}>
-              {i}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">Not provided.</p>
-      )}
-    </section>
-  )
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-sm text-foreground">{value}</p>
-    </div>
-  )
-}
+const SIDE_LABEL: Record<Side, string> = { seeker: "Job seeker profile", employer: "Employer profile" }
 
 function VerificationTimeline({ user }: { user: UserAccount }) {
   return (
-    <div className="space-y-3">
+    <ul className="space-y-4">
       {user.verificationHistory.map((step) => (
-        <div key={step.label} className="flex items-start gap-2.5">
-          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />
+        <li key={step.label} className="flex items-start gap-4">
+          <Check className="mt-0.5 size-5 shrink-0 text-foreground" strokeWidth={2.25} />
           <div>
-            <p className="text-sm text-foreground">{step.label}</p>
-            <p className="text-xs text-muted-foreground">{step.date}</p>
+            <p className="text-body1 text-foreground">{step.label}</p>
+            <p className="text-body2 text-muted-foreground">{step.date}</p>
           </div>
-        </div>
+        </li>
       ))}
-    </div>
-  )
-}
-
-function EmployerDetailsTab({ user }: { user: UserAccount }) {
-  const jobs = user.jobsPosted ?? []
-  const [jobActive, setJobActive] = useState<boolean[]>(jobs.map((j) => j.active ?? true))
-
-  if (jobs.length === 0) {
-    return <p className="text-sm text-muted-foreground">No jobs posted yet.</p>
-  }
-
-  return (
-    <Card className="overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Title</TableHead>
-            <TableHead>Posted</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="w-36" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {jobs.map((job, i) => (
-            <TableRow key={job.title}>
-              <TableCell className="font-medium text-foreground">{job.title}</TableCell>
-              <TableCell className="text-muted-foreground">{job.posted}</TableCell>
-              <TableCell>
-                <StatusPill
-                  status={jobActive[i] ? "success" : "neutral"}
-                  label={jobActive[i] ? "Active" : "Deactivated"}
-                />
-              </TableCell>
-              <TableCell>
-                <button
-                  type="button"
-                  className="text-xs font-bold text-foreground"
-                  onClick={() => setJobActive((prev) => prev.map((v, idx) => (idx === i ? !v : v)))}
-                >
-                  {jobActive[i] ? "Deactivate job" : "Activate job"}
-                </button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
-  )
-}
-
-function PromotionsTab({ user }: { user: UserAccount }) {
-  const promoted = (user.jobsPosted ?? []).filter((j) => j.promoted)
-
-  if (promoted.length === 0) {
-    return <p className="text-sm text-muted-foreground">No promotions run yet.</p>
-  }
-
-  return (
-    <div className="space-y-2">
-      {promoted.map((job) => (
-        <div key={job.title} className="flex items-center justify-between rounded-md border border-border p-3">
+      {user.reviewerNote && (
+        <li className="flex items-start gap-4">
+          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-success" strokeWidth={2} />
           <div>
-            <p className="text-sm font-medium text-foreground">{job.title}</p>
-            <p className="text-xs text-muted-foreground">
-              {job.promotedRange ?? "Active promotion"} · {(job.impressions ?? 0).toLocaleString()} impressions ·{" "}
-              {(job.clicks ?? 0).toLocaleString()} clicks
-            </p>
+            <p className="text-body1 text-foreground">{user.reviewerNote.label}</p>
+            <p className="text-body2 text-muted-foreground">{user.reviewerNote.date}</p>
           </div>
-          <StatusPill status="success" label="Promoted" />
-        </div>
-      ))}
-    </div>
+        </li>
+      )}
+    </ul>
   )
 }
 
-function ProfileAnalyticsTab({ userId }: { userId: string }) {
-  const summary = getProfileViewSummary(userId)
-  const recommendationCount = getRecommendationCount(userId)
-
+/** One stat in the host card, e.g. "4" over "Jobs posted", stacked with hairlines between. */
+function CardStat({ value, label }: { value: ReactNode; label: string }) {
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-md border border-border p-3">
-          <p className="text-xs text-muted-foreground">Profile views (30d)</p>
-          <p className="mt-1 text-base font-semibold text-foreground">{summary.total}</p>
-        </div>
-        <div className="rounded-md border border-border p-3">
-          <p className="text-xs text-muted-foreground">Views this week</p>
-          <p className="mt-1 text-base font-semibold text-foreground">{summary.thisWeek}</p>
-        </div>
-        <div className="rounded-md border border-border p-3">
-          <p className="text-xs text-muted-foreground">Last viewed</p>
-          <p className="mt-1 text-base font-semibold text-foreground">{summary.lastViewed}</p>
-        </div>
-        <div className="rounded-md border border-border p-3">
-          <p className="text-xs text-muted-foreground">Times recommended for jobs</p>
-          <p className="mt-1 text-base font-semibold text-foreground">{recommendationCount}</p>
-        </div>
-      </div>
-      <div className="rounded-xl border border-border p-4">
-        <Sparkline
-          label="Profile visits"
-          latest={`${summary.trend[summary.trend.length - 1].count} today`}
-          data={summary.trend.map((d) => d.count)}
-          color="var(--brand-cta)"
-        />
-      </div>
+    <div className="py-3 first:pt-0 last:pb-0">
+      <p className="heading-subsection font-bold">{value}</p>
+      <p className="text-caption font-medium text-foreground">{label}</p>
     </div>
   )
 }
@@ -211,7 +87,8 @@ function ProfileAnalyticsTab({ userId }: { userId: string }) {
 function UserDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const user = users.find((u) => u.id === id)
+  const [params, setParams] = useSearchParams()
+  const user = findUser(id)
 
   const [verification, setVerification] = useState(user?.verification)
   const [verificationLabel, setVerificationLabel] = useState(user?.verificationLabel)
@@ -224,187 +101,287 @@ function UserDetailPage() {
   const [rejectOpen, setRejectOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [viewingDoc, setViewingDoc] = useState<UserDocument | null>(null)
-  const [tab, setTab] = useState<DetailTab>("account")
+  const [tab, setTab] = useState<DetailTab>(user?.verification === "warning" ? "verification" : "overview")
+
+  const seeker = user ? seekerOf(user) : null
+  const employer = user ? employerOf(user) : null
+  const posted = useMemo(() => (user && employer ? postedJobsOf(user.id) : []), [user, employer])
 
   if (!user) {
     return (
       <div>
-        <BackButton to="/users" label="Back to Users" />
-        <p className="text-sm text-muted-foreground">User not found.</p>
+        <PageHeader title="User not found" back={{ to: "/users", label: "Back to users" }} />
+        <p className="text-body1 text-muted-foreground">This account doesn't exist or has been removed.</p>
       </div>
     )
   }
 
+  const sides: Side[] = [...(seeker ? (["seeker"] as const) : []), ...(employer ? (["employer"] as const) : [])]
+  const requested = params.get("side") as Side | null
+  const side: Side | null = requested && sides.includes(requested) ? requested : (sides[0] ?? null)
+  const setSide = (s: Side) => {
+    setParams({ side: s }, { replace: true })
+    if (tab !== "verification" && tab !== "info") setTab("overview")
+  }
+
   const bucket: UserBucket = getUserBucket({ ...user, verification: verification!, account: account! })
   const isDisabled = accountLabel === "Disabled"
+  const isVerified = verification === "success"
+  const firstName = user.name.split(" ")[0]
+  const stats = getUserStats(user)
+  const photo = photoFor(user.name)
 
   const identityDocs = user.documents.filter((d) => d.type !== "business")
   const businessDocs = user.documents.filter((d) => d.type === "business")
-  const coverGradient = getCoverGradient(user.id)
+
+  const sideReviews = side ? reviewsAbout(user.id, side) : []
+  const published = sideReviews.filter((r) => r.state === "Published")
+  const rating = published.length ? published.reduce((s, r) => s + r.rating, 0) / published.length : null
+  const sideHires = side ? hiresAs(user.id, side) : []
+  const promoRows = side === "seeker" ? profilePromotionsOf(user, photo) : side === "employer" ? jobPromotionsOf(user, posted) : []
+
+  const missing = (["seeker", "employer"] as const).find((s) => !sides.includes(s))
+  const missingNote =
+    sides.length === 0
+      ? `${firstName} hasn't set up either side yet.`
+      : missing === "employer"
+        ? `No employer profile yet. ${firstName} only uses Jobs Region to find work.`
+        : missing === "seeker"
+          ? `No job seeker profile yet. ${firstName} only uses Jobs Region to hire.`
+          : `${firstName} uses both sides of Jobs Region. Switch to see each profile.`
 
   const tabDefs: { key: DetailTab; label: string }[] = [
-    { key: "account", label: "Account Details" },
-    { key: "info", label: "User Information" },
-    ...(user.roles.includes("Worker") ? [{ key: "worker" as const, label: "Worker Details" }] : []),
-    ...(user.roles.includes("Employer")
-      ? [
-          { key: "employer" as const, label: "Employer Details" },
-          { key: "promotions" as const, label: "Promotions" },
-        ]
-      : []),
-    { key: "analytics", label: "Profile Analytics" },
+    ...(side ? [{ key: "overview" as const, label: "Profile" }] : []),
+    ...(side === "employer" ? [{ key: "jobs" as const, label: "Jobs" }] : []),
+    ...(side ? [{ key: "reviews" as const, label: "Reviews" }] : []),
+    ...(side ? [{ key: "promotions" as const, label: "Promotions" }] : []),
+    ...(side ? [{ key: "analytics" as const, label: "Analytics" }] : []),
+    { key: "verification", label: "Verification" },
+    { key: "info", label: "Account" },
   ]
+  const activeTab = tabDefs.some((t) => t.key === tab) ? tab : tabDefs[0].key
+  const sideWord = side === "employer" ? "poster" : "worker"
 
   return (
     <div>
-      <BackButton to="/users" label="Back to Users" />
+      <PageHeader title={user.name} back={{ to: "/users", label: "Back to users" }} />
 
-      <div className="mb-6 overflow-hidden rounded-xl border border-border">
-        <div className={cn("h-20 bg-gradient-to-br sm:h-24", coverGradient)} />
-        <div className="px-5 pb-4">
-          <Avatar name={user.name} className="-mt-10 size-20 shrink-0 rounded-full text-xl ring-4 ring-card" />
-          <div className="mt-3 min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-lg font-semibold text-foreground">{user.name}</p>
-              {user.roles.map((r) => (
-                <OutlineBadge key={r} label={r} />
-              ))}
-              <StatusPill status={verification!} label={verificationLabel!} />
-              <StatusPill status={account!} label={accountLabel!} />
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span>Joined {user.dateJoined}</span>
-              <span className="flex items-center gap-1">
-                <MapPin className="size-3.5" />
-                {user.location}
-              </span>
-            </div>
-          </div>
-
-          {bucket === "active" && user.interests.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {user.interests.map((i) => (
-                <span
-                  key={i}
-                  className="rounded-full bg-brand-cta-tint px-2.5 py-1 text-xs font-semibold text-brand-cta"
-                >
-                  {i}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="mb-10 flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-border pb-6">
+        {sides.length > 0 && <PillTabs options={sides.map((s) => ({ key: s, label: SIDE_LABEL[s] }))} value={side!} onChange={setSide} />}
+        <p className="flex items-center gap-2 text-body2 text-muted-foreground">
+          <Info className="size-4 shrink-0" />
+          {missingNote}
+        </p>
       </div>
 
-      <div className="mb-6 flex h-9 items-center gap-1 overflow-x-auto border-b border-border px-1">
-        {tabDefs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "relative whitespace-nowrap px-1.5 py-1 text-sm",
-              tab === t.key ? "font-medium text-foreground" : "text-muted-foreground",
-            )}
-          >
-            {t.label}
-            {tab === t.key && <span className="absolute -bottom-1 left-0 h-0.5 w-full bg-foreground" />}
-          </button>
-        ))}
-      </div>
-
-      {tab === "account" && (
-        <div className="space-y-6">
-          <section className="space-y-2">
-            <p className="text-sm font-semibold text-foreground">Verification timeline</p>
-            <VerificationTimeline user={user} />
-          </section>
-
-          {identityDocs.length > 0 && (
-            <section className="space-y-2">
-              <p className="text-sm font-semibold text-foreground">Identity documents</p>
-              <DocumentGrid documents={identityDocs} onView={setViewingDoc} />
-            </section>
-          )}
-
-          {businessDocs.length > 0 && (
-            <section className="space-y-2">
-              <p className="text-sm font-semibold text-foreground">Business documents</p>
-              <DocumentGrid documents={businessDocs} onView={setViewingDoc} />
-            </section>
-          )}
-
-          {bucket === "deactivated" && user.deactivationReason && (
-            <section className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
-              <p className="text-sm font-medium text-foreground">Why this account is deactivated</p>
-              <p className="mt-1 text-sm text-muted-foreground">{user.deactivationReason}</p>
-            </section>
-          )}
-
-          {bucket === "pending" && (
-            <section className="space-y-2">
-              <p className="text-sm font-semibold text-foreground">Verification decision</p>
-              <p className="text-sm text-muted-foreground">
-                Review the submitted ID and selfie side by side before approving or rejecting this account.
-              </p>
-              <Button size="sm" className="px-6" onClick={() => setReviewOpen(true)}>
-                Review verification
-              </Button>
-            </section>
-          )}
-
-          {!removed && (
-            <section className="space-y-2">
-              <p className="text-sm font-semibold text-foreground">Account actions</p>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="px-6" onClick={() => setDisableOpen(true)}>
-                  {isDisabled ? "Enable account" : "Disable account"}
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="bg-destructive px-6 text-white hover:bg-destructive/90"
-                  onClick={() => setRemoveOpen(true)}
-                >
-                  Remove user
-                </Button>
+      <div className="grid grid-cols-1 gap-12 lg:grid-cols-[380px_minmax(0,1fr)] xl:gap-20">
+        {/* Left: the host card and account actions */}
+        <aside className="lg:sticky lg:top-28 lg:self-start">
+          <div className="flex items-center gap-6 rounded-3xl bg-card p-6 shadow-[0_6px_16px_rgb(0_0_0/0.12)]">
+            <div className="flex flex-1 flex-col items-center text-center">
+              <div className="relative">
+                <Avatar name={user.name} className="size-28 text-h4" />
+                {isVerified && (
+                  <span className="absolute bottom-0 right-0 flex size-8 items-center justify-center rounded-full bg-brand text-white ring-4 ring-card">
+                    <ShieldCheck className="size-4" strokeWidth={2.5} />
+                  </span>
+                )}
               </div>
-            </section>
-          )}
-        </div>
-      )}
-
-      {tab === "info" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <InfoRow label="Full name" value={user.name} />
-            <InfoRow label="User ID" value={user.id} />
-            <InfoRow label="Roles" value={user.roles.join(", ")} />
-            <InfoRow label="Date joined" value={user.dateJoined} />
-            <InfoRow label="Location" value={user.location} />
-            <InfoRow label="Email" value={user.email} />
-            <InfoRow label="Phone" value={user.phone} />
+              <p className={cn("heading-section mt-3", removed && "line-through")}>{firstName}</p>
+              <p className="mt-0.5 text-body2 font-medium text-foreground">
+                {side === "employer" ? (employer?.type === "business" ? "Employer · Business" : "Employer") : side === "seeker" ? "Job seeker" : "No profile"}
+                {side === "seeker" && seeker?.pro && " · Pro"}
+              </p>
+            </div>
+            <div className="w-28 shrink-0 divide-y divide-border">
+              {side === "employer" ? (
+                <CardStat value={posted.length || stats.jobsPosted} label="Jobs posted" />
+              ) : (
+                <CardStat value={sideHires.length} label="Hires" />
+              )}
+              <CardStat
+                value={rating ? <>{rating.toFixed(1)} ★</> : published.length}
+                label={rating ? `${published.length} review${published.length === 1 ? "" : "s"}` : "Reviews"}
+              />
+              <CardStat
+                value={stats.tenure.value}
+                label={stats.tenure.unit === "years" ? "Years on Jobs Region" : "Months on Jobs Region"}
+              />
+            </div>
           </div>
-          <section className="space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">Bio</p>
-            <p className="text-sm text-foreground">{user.bio}</p>
+
+          <div className="mt-8 space-y-4 rounded-xl border border-border p-6">
+            <p className="heading-card">Account status</p>
+            <div className="flex items-center justify-between">
+              <span className="text-body1 text-muted-foreground">Identity</span>
+              <StatusDot status={verification!} label={verificationLabel!} />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-body1 text-muted-foreground">Account</span>
+              <StatusDot status={account!} label={accountLabel!} />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-body1 text-muted-foreground">Profiles</span>
+              <span className="text-body2 text-foreground">{sides.length === 2 ? "Seeker and employer" : sides.length ? (sides[0] === "seeker" ? "Seeker" : "Employer") : "None"}</span>
+            </div>
+
+            {(bucket === "pending" || !removed) && (
+              <div className="space-y-3 border-t border-border pt-5">
+                {bucket === "pending" && (
+                  <Button variant="brand" size="lg" className="w-full" onClick={() => setReviewOpen(true)}>
+                    Review verification
+                  </Button>
+                )}
+                {!removed && (
+                  <>
+                    <Button variant="outline" size="lg" className="w-full" onClick={() => setDisableOpen(true)}>
+                      {isDisabled ? "Enable account" : "Disable account"}
+                    </Button>
+                    <Button variant="destructive" size="lg" className="w-full" onClick={() => setRemoveOpen(true)}>
+                      Remove user
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* Right: About, then the tabbed sections for the chosen side */}
+        <div className="min-w-0">
+          <section className="pb-10">
+            <h2 className="heading-section">About {firstName}</h2>
+            <div className="mt-6 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+              <IconRow icon={MapPin}>Lives in {user.location}</IconRow>
+              <IconRow icon={Briefcase}>
+                {sides.length === 2 ? "Works and hires" : side === "employer" ? "Hires on Jobs Region" : "Works on Jobs Region"}
+              </IconRow>
+              <IconRow icon={Mail}>{user.email}</IconRow>
+              <IconRow icon={Phone}>{user.phone}</IconRow>
+              <IconRow icon={CalendarDays}>Joined {user.dateJoined}</IconRow>
+              {isVerified && <IconRow icon={BadgeCheck}>Identity verified</IconRow>}
+            </div>
+            <p className="mt-8 max-w-2xl text-body1 leading-relaxed text-foreground">{user.bio}</p>
           </section>
-          <ChipSection title="Interests" items={user.interests} tone="success" />
+
+          <div className="border-t border-border pt-8">
+            <Tabs tabs={tabDefs} value={activeTab} onChange={setTab} className="mb-10 overflow-x-auto" />
+
+            {activeTab === "overview" && side === "seeker" && seeker && <SeekerOverview user={user} seeker={seeker} />}
+            {activeTab === "overview" && side === "employer" && employer && <EmployerOverview user={user} employer={employer} />}
+
+            {activeTab === "jobs" && (
+              <Section title="Jobs posted" description={`Every job ${firstName} has posted. Open one to review it, or deactivate it from the menu.`}>
+                <PostedJobsTable jobs={posted} />
+              </Section>
+            )}
+
+            {activeTab === "reviews" && side && (
+              <Section
+                title={side === "employer" ? "Reviews and hires as a poster" : "Reviews and hires as a worker"}
+                description={side === "employer" ? "What workers said after being hired, and who was hired." : "What posters said after hiring, and the jobs they were hired for."}
+              >
+                <SubSection title={`Reviews received as a ${sideWord}`}>
+                  <ReviewList items={sideReviews} empty={`No reviews as a ${sideWord} yet.`} />
+                </SubSection>
+                <SubSection title={`Hires as a ${sideWord}`}>
+                  <HireTable
+                    items={sideHires}
+                    otherSide={side === "employer" ? "worker" : "poster"}
+                    empty={`No hires as a ${sideWord} yet.`}
+                  />
+                </SubSection>
+              </Section>
+            )}
+
+            {activeTab === "promotions" && side && (
+              <Section
+                title={side === "employer" ? "Promotions on jobs" : "Promotions on profile"}
+                description={side === "employer" ? `Boosts ${firstName} paid for on their job posts.` : `Boosts ${firstName} paid for to show their profile higher in Find people.`}
+              >
+                <PromotionTable
+                  items={promoRows}
+                  empty={side === "employer" ? "No job promotions run yet." : "No profile promotions run yet."}
+                />
+              </Section>
+            )}
+
+            {activeTab === "analytics" && side && (
+              <Section
+                title={side === "employer" ? "Employer analytics" : "Job seeker analytics"}
+                description={side === "employer" ? "How their jobs are found and answered." : "How often people find and contact this profile."}
+              >
+                <ProfileAnalytics key={side} user={user} side={side} posted={posted} />
+              </Section>
+            )}
+
+            {activeTab === "verification" && (
+              <div>
+                {bucket === "deactivated" && user.deactivationReason && (
+                  <Section title="Why this account is deactivated">
+                    <div className="flex items-start gap-4">
+                      <AlertCircle className="mt-0.5 size-5 shrink-0 text-destructive" strokeWidth={2} />
+                      <p className="text-body1 text-foreground">{user.deactivationReason}</p>
+                    </div>
+                  </Section>
+                )}
+
+                {bucket === "pending" && (
+                  <Section
+                    title="Waiting for your decision"
+                    description="Check the ID and selfie side by side before approving or rejecting this account."
+                  >
+                    <Button size="lg" onClick={() => setReviewOpen(true)}>
+                      Review verification
+                    </Button>
+                  </Section>
+                )}
+
+                <Section title="Identity verification" description="The documents this person uploaded to prove who they are.">
+                  {identityDocs.length > 0 ? (
+                    <DocumentGrid documents={identityDocs} onView={setViewingDoc} selfiePhoto={photo} />
+                  ) : (
+                    <p className="text-body1 text-muted-foreground">No identity documents uploaded.</p>
+                  )}
+                </Section>
+
+                {businessDocs.length > 0 && (
+                  <Section title="Business documents">
+                    <DocumentGrid documents={businessDocs} onView={setViewingDoc} />
+                  </Section>
+                )}
+
+                <Section title={`${firstName}'s confirmed information`}>
+                  <VerificationTimeline user={user} />
+                </Section>
+              </div>
+            )}
+
+            {activeTab === "info" && (
+              <div>
+                <Section title="Account details">
+                  <div className="grid grid-cols-1 gap-x-10 sm:grid-cols-2">
+                    <InfoRow label="Full name" value={user.name} />
+                    <InfoRow label="User ID" value={user.id} />
+                    <InfoRow label="Profiles" value={sides.map((s) => SIDE_LABEL[s]).join(", ") || "None"} />
+                    <InfoRow label="Date joined" value={user.dateJoined} />
+                    <InfoRow label="Location" value={user.location} />
+                    <InfoRow label="Email" value={user.email} />
+                    <InfoRow label="Phone" value={user.phone} />
+                    <InfoRow label="Activity" value={user.activity} />
+                  </div>
+                </Section>
+                <Section title="Bio">
+                  <p className="max-w-2xl text-body1 leading-relaxed text-foreground">{user.bio}</p>
+                </Section>
+                <Section title="Interests">
+                  <Pills items={user.interests} />
+                </Section>
+              </div>
+            )}
+          </div>
         </div>
-      )}
-
-      {tab === "worker" && (
-        <div className="space-y-6">
-          <ChipSection title="Services offered" items={user.services ?? []} tone="brand" />
-          <ChipSection title="Selected skills" items={user.skills ?? []} tone="primary" />
-          <ChipSection title="Interests" items={user.interests} tone="success" />
-        </div>
-      )}
-
-      {tab === "employer" && <EmployerDetailsTab user={user} />}
-
-      {tab === "promotions" && <PromotionsTab user={user} />}
-
-      {tab === "analytics" && <ProfileAnalyticsTab userId={user.id} />}
+      </div>
 
       <ConfirmationDialog
         open={disableOpen}
@@ -477,7 +454,7 @@ function UserDetailPage() {
         }}
       />
 
-      <DocumentViewerDialog doc={viewingDoc} onClose={() => setViewingDoc(null)} />
+      <DocumentViewerDialog doc={viewingDoc} onClose={() => setViewingDoc(null)} selfiePhoto={photo} />
     </div>
   )
 }

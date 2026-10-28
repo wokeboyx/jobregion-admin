@@ -1,12 +1,29 @@
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { useParams, useNavigate, useLocation } from "react-router-dom"
 
-import { BackButton } from "@/components/back-button"
 import { Button } from "@/components/ui/button"
-import { StatusPill } from "@/components/ui/status-pill"
+import { Avatar } from "@/components/ui/avatar"
+import type { Status } from "@/components/ui/status-pill"
+import { PageHeader } from "@/components/page-header"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
 import { MarkdownEditor } from "@/components/markdown-editor"
-import { supportCategories } from "@/lib/mock-data"
+import { helpCategories as supportCategories } from "./generated"
+
+const DOT: Record<Status, string> = {
+  success: "bg-success",
+  warning: "bg-warning",
+  destructive: "bg-destructive",
+  neutral: "bg-muted-foreground",
+}
+
+function FactRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3 text-body2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="flex items-center gap-2 text-right text-foreground">{children}</span>
+    </div>
+  )
+}
 
 function ArticleEditPage() {
   const { id } = useParams()
@@ -16,7 +33,7 @@ function ArticleEditPage() {
 
   const categoryId = isNew ? (location.state as { categoryId?: string } | null)?.categoryId : undefined
   const category = isNew
-    ? supportCategories.find((c) => c.id === categoryId)
+    ? (supportCategories.find((c) => c.id === categoryId) ?? supportCategories[0])
     : supportCategories.find((c) => c.articles.some((a) => a.id === id))
   const existingArticle = isNew ? undefined : category?.articles.find((a) => a.id === id)
 
@@ -28,16 +45,14 @@ function ArticleEditPage() {
   const [saved, setSaved] = useState(false)
   const [draftId] = useState(() => `SA-${Date.now()}`)
 
+  const back = { to: "/support", label: "Back to Help Center" }
+
   if (!category || (!isNew && !existingArticle)) {
-    return (
-      <div>
-        <BackButton to="/support" label="Back to Support Center" />
-        <p className="text-sm text-muted-foreground">Article not found.</p>
-      </div>
-    )
+    return <PageHeader title="Article not found" description="This article may have been deleted or moved." back={back} />
   }
 
   const isPublished = statusLabel === "Published"
+  const author = existingArticle?.author ?? "Desmond Ajimuda"
 
   const persist = (nextStatus: typeof status, nextStatusLabel: string) => {
     if (isNew) {
@@ -48,79 +63,102 @@ function ArticleEditPage() {
         status: nextStatus,
         statusLabel: nextStatusLabel,
         updated: new Date().toISOString().slice(0, 10),
-        author: "Desmond Ajimuda",
+        author,
+        views: 0,
       })
     } else if (existingArticle) {
       Object.assign(existingArticle, { title, body, status: nextStatus, statusLabel: nextStatusLabel })
     }
   }
 
+  const save = () => {
+    persist(status, statusLabel)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+    if (isNew) navigate("/support")
+  }
+
+  const togglePublish = () => {
+    const nextStatus = isPublished ? "warning" : "success"
+    const nextStatusLabel = isPublished ? "Draft" : "Published"
+    setStatus(nextStatus)
+    setStatusLabel(nextStatusLabel)
+    persist(nextStatus, nextStatusLabel)
+    if (isNew) navigate("/support")
+  }
+
   return (
-    <div className="mx-auto max-w-3xl">
-      <BackButton to="/support" label="Back to Support Center" />
+    <div>
+      <PageHeader title={isNew ? "New article" : "Edit article"} description={`In ${category.name}`} back={back} />
 
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <p className="text-lg font-semibold text-foreground">{isNew ? "New article" : "Edit article"}</p>
-          <StatusPill status={status} label={statusLabel} />
-        </div>
-        {!isNew && (
-          <Button
-            variant="destructive"
-            size="sm"
-            className="bg-destructive text-white hover:bg-destructive/90"
-            onClick={() => setDeleteOpen(true)}
-          >
-            Delete
-          </Button>
-        )}
-      </div>
-
-      <p className="mb-4 text-xs text-muted-foreground">In {category.name}</p>
-
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <p className="text-[13px] font-medium text-foreground">Title</p>
+      <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_372px] lg:gap-20">
+        <div className="min-w-0">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Article title"
-            className="h-10 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-brand-cta"
+            placeholder="Give your article a title"
+            aria-label="Title"
+            className="heading-page w-full border-0 bg-transparent p-0 text-foreground outline-none placeholder:text-[#b0b0b0]"
           />
-        </div>
-        <div className="space-y-1.5">
-          <p className="text-[13px] font-medium text-foreground">Body</p>
-          <MarkdownEditor value={body} onChange={setBody} placeholder="Write the article in Markdown…" />
+
+          <section className="mt-8 border-t border-border pt-8">
+            <h2 className="heading-section">Article</h2>
+            <p className="mt-1 text-body2 text-muted-foreground">Write in Markdown. Keep each step short so it reads well on a phone.</p>
+            <div className="mt-6">
+              <MarkdownEditor value={body} onChange={setBody} rows={18} placeholder="Write the article in Markdown…" />
+            </div>
+          </section>
         </div>
 
-        <div className="flex items-center gap-2 pt-2">
-          <Button
-            size="sm"
-            onClick={() => {
-              persist(status, statusLabel)
-              setSaved(true)
-              setTimeout(() => setSaved(false), 2000)
-              if (isNew) navigate("/support")
-            }}
-          >
-            {isNew ? "Create draft" : "Save changes"}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const nextStatus = isPublished ? "warning" : "success"
-              const nextStatusLabel = isPublished ? "Draft" : "Published"
-              setStatus(nextStatus)
-              setStatusLabel(nextStatusLabel)
-              persist(nextStatus, nextStatusLabel)
-              if (isNew) navigate("/support")
-            }}
-          >
-            {isPublished ? "Unpublish" : "Publish"}
-          </Button>
-          {saved && <span className="text-xs text-muted-foreground">Saved.</span>}
-        </div>
+        <aside>
+          <div className="sticky top-28 rounded-xl border border-border p-6 shadow-card">
+            <div className="flex items-center gap-2">
+              <span className={`size-2.5 rounded-full ${DOT[status]}`} />
+              <p className="heading-card">{statusLabel}</p>
+            </div>
+            <p className="mt-1 text-body2 text-muted-foreground">
+              {isPublished ? "Live in the Help Center on web and mobile." : "Only admins can see this article."}
+            </p>
+
+            <div className="mt-6 divide-y divide-border border-y border-border">
+              <FactRow label="Category">{category.name}</FactRow>
+              <FactRow label="Last updated">{existingArticle?.updated ?? "Not saved yet"}</FactRow>
+              <FactRow label="Views">{(existingArticle?.views ?? 0).toLocaleString()}</FactRow>
+              <FactRow label="Author">
+                <Avatar name={author} className="size-6" />
+                {author}
+              </FactRow>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              {isPublished ? (
+                <>
+                  <Button size="lg" className="w-full" onClick={save}>
+                    Save changes
+                  </Button>
+                  <Button size="lg" variant="outline" className="w-full" onClick={togglePublish}>
+                    Unpublish
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button size="lg" className="w-full" onClick={togglePublish}>
+                    Publish
+                  </Button>
+                  <Button size="lg" variant="outline" className="w-full" onClick={save}>
+                    Save draft
+                  </Button>
+                </>
+              )}
+              {!isNew && (
+                <Button variant="destructive" className="w-full" onClick={() => setDeleteOpen(true)}>
+                  Delete article
+                </Button>
+              )}
+              {saved && <p className="text-center text-body2 text-muted-foreground">Saved.</p>}
+            </div>
+          </div>
+        </aside>
       </div>
 
       <ConfirmationDialog

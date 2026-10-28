@@ -1,23 +1,18 @@
-import type { FormEvent, ReactNode } from "react"
+import { useId, type FormEvent, type ReactNode } from "react"
 
-import { Dialog } from "@/components/ui/dialog"
+import { Dialog, DialogTextButton } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 
-function FormField({
-  label,
-  children,
-}: {
-  label: string
-  children: ReactNode
-}) {
+function FormField({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <p className="text-[13px] font-medium text-foreground">{label}</p>
+    <div className="space-y-2">
+      <p className="text-sm font-semibold text-foreground">{label}</p>
       {children}
     </div>
   )
 }
 
+/** A focused task in an Airbnb modal: ✕ and title on top, the fields, then Cancel and one black button. */
 function FormDialog({
   open,
   onClose,
@@ -35,6 +30,7 @@ function FormDialog({
   submitLabel: string
   children: ReactNode
 }) {
+  const formId = useId()
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     onSubmit()
@@ -42,26 +38,25 @@ function FormDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} width="w-[384px]">
-      <form onSubmit={handleSubmit} className="space-y-5 p-6">
-        <div className="space-y-1">
-          <p className="text-base font-semibold text-foreground">{title}</p>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
-
-        <div className="space-y-4">{children}</div>
-
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" size="sm">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={title}
+      footer={
+        <>
+          <DialogTextButton onClick={onClose}>Cancel</DialogTextButton>
+          <Button type="submit" form={formId} size="lg">
             {submitLabel}
           </Button>
-        </div>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={handleSubmit} className="space-y-6 p-6">
+        <p className="text-body1 leading-6 text-muted-foreground">{description}</p>
+        <div className="space-y-5">{children}</div>
       </form>
     </Dialog>
   )
 }
 
-export { FormDialog, FormField }
+export { FormField, FormDialog }

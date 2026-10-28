@@ -1,4 +1,7 @@
-import { Search, ChevronDown } from "lucide-react"
+import { useState } from "react"
+import { Search } from "lucide-react"
+
+import { SelectMenu } from "@/components/ui/select-menu"
 
 interface FilterDef {
   label: string
@@ -8,24 +11,18 @@ interface FilterDef {
 }
 
 function FilterSelect({ label, options, value, onChange }: FilterDef) {
-  const controlled = value !== undefined
+  const [own, setOwn] = useState(label)
+  const current = value ?? own
   return (
-    <div className="relative h-9 w-40 shrink-0">
-      <select
-        value={controlled ? value : undefined}
-        defaultValue={controlled ? undefined : label}
-        onChange={(e) => onChange?.(e.target.value)}
-        className="h-9 w-full appearance-none rounded-md border border-border bg-card pl-2.5 pr-8 text-sm text-foreground outline-none focus-visible:border-brand-cta"
-      >
-        <option value={label}>{label}</option>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-    </div>
+    <SelectMenu
+      aria-label={label}
+      value={current}
+      options={[label, ...options]}
+      onChange={(v) => {
+        setOwn(v)
+        onChange?.(v)
+      }}
+    />
   )
 }
 
@@ -44,13 +41,13 @@ function FilterBar({
 }) {
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className ?? ""}`}>
-      <div className="relative h-9 w-80 shrink-0">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <div className="relative h-9 w-[26rem] max-w-full shrink-0">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <input
           placeholder={searchPlaceholder}
           value={searchValue}
           onChange={(e) => onSearchChange?.(e.target.value)}
-          className="h-9 w-full rounded-md border border-border bg-card pl-8 pr-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:border-brand-cta"
+          className="h-9 w-full rounded-full border border-input bg-card pl-9 pr-3.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-foreground"
         />
       </div>
       {filters.map((f) => (

@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from "react"
-import { useLocation } from "react-router-dom"
-import { Bell, Search, ChevronDown, LayoutPanelTop } from "lucide-react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
+import { Link, useLocation } from "react-router-dom"
+import { Bell, Menu, LayoutPanelTop, LogOut, UserRound } from "lucide-react"
 
 import { Avatar } from "@/components/ui/avatar"
-import { RowMenu } from "@/components/row-menu"
 import { MyProfileDialog } from "@/components/my-profile-dialog"
 import { cn } from "@/lib/utils"
 import { usePreviewState, type PreviewState } from "@/lib/preview-state"
 import { admins, currentAdminId } from "@/lib/mock-data"
+import { LogoMark } from "./logo-mark"
 
 const currentAdmin = admins.find((a) => a.id === currentAdminId)!
 
@@ -21,6 +21,12 @@ const PREVIEWABLE_PATHS = new Set([
   "/blog",
   "/support",
   "/audit-log",
+  "/reports",
+  "/reviews",
+  "/job-sources",
+  "/payments",
+  "/announcements",
+  "/inbox",
 ])
 
 const PREVIEW_OPTIONS: { value: PreviewState; label: string }[] = [
@@ -30,8 +36,23 @@ const PREVIEW_OPTIONS: { value: PreviewState; label: string }[] = [
   { value: "error", label: "Error state" },
 ]
 
-function PreviewStateMenu() {
-  const { state, setState } = usePreviewState()
+const NOTIFICATIONS = [
+  { id: 1, text: "Kwame Asante submitted ID and selfie for verification", time: "12 min ago", unread: true, to: "/users/U-09" },
+  { id: 2, text: "“Professional Wedding DJ” was reported: asks for a registration fee", time: "1 hour ago", unread: true, to: "/reports" },
+  { id: 3, text: "A review of Bassey Umoh was reported for offensive language", time: "2 hours ago", unread: false, to: "/reviews" },
+  { id: 4, text: "Grace Nwankwo requested a role change", time: "3 hours ago", unread: false, to: "/admins" },
+]
+
+/** A dropdown that closes on outside click and Escape. */
+function Popover({
+  trigger,
+  children,
+  className,
+}: {
+  trigger: (open: boolean, toggle: () => void) => ReactNode
+  children: (close: () => void) => ReactNode
+  className?: string
+}) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -40,148 +61,155 @@ function PreviewStateMenu() {
     const onClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false)
     document.addEventListener("mousedown", onClick)
-    return () => document.removeEventListener("mousedown", onClick)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onClick)
+      document.removeEventListener("keydown", onKey)
+    }
   }, [open])
 
-  const current = PREVIEW_OPTIONS.find((o) => o.value === state) ?? PREVIEW_OPTIONS[0]
-
   return (
-    <div ref={ref} className="relative shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md border px-3 text-sm font-medium outline-none",
-          state === "default"
-            ? "border-border bg-card text-foreground"
-            : "border-brand-cta bg-brand-cta-tint text-brand-cta",
-        )}
-      >
-        <LayoutPanelTop className="size-4" />
-        {current.label}
-        <ChevronDown className="size-3.5" />
-      </button>
+    <div ref={ref} className="relative">
+      {trigger(open, () => setOpen((o) => !o))}
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-md border border-border bg-card py-1 shadow-[0px_10px_15px_rgba(0,0,0,0.08)]">
-          {PREVIEW_OPTIONS.map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              onClick={() => {
-                setState(o.value)
-                setOpen(false)
-              }}
-              className={cn(
-                "block w-full px-3 py-1.5 text-left text-[13px] font-medium hover:bg-muted",
-                state === o.value ? "text-foreground" : "text-muted-foreground",
-              )}
-            >
-              {o.label}
-            </button>
-          ))}
+        <div className={cn("absolute right-0 top-full z-50 mt-2 rounded-xl bg-card py-2 shadow-dropdown", className)}>
+          {children(() => setOpen(false))}
         </div>
       )}
     </div>
   )
 }
 
-const PAGE_META: Record<string, { title: string; search: string }> = {
-  "/": { title: "Overview", search: "Search…" },
-  "/users": { title: "Users", search: "Search users…" },
-  "/jobs": { title: "Jobs", search: "Search jobs…" },
-  "/categories": { title: "Categories", search: "Search categories…" },
-  "/promotions": { title: "Promotions", search: "Search promotions…" },
-  "/subscriptions": { title: "Subscriptions", search: "Search subscriptions…" },
-  "/blog": { title: "Blog", search: "Search posts…" },
-  "/support": { title: "Support Center", search: "Search articles…" },
-  "/admins": { title: "Admin Management", search: "Search admins…" },
-  "/audit-log": { title: "Audit Log", search: "Search the audit log…" },
-}
-
-const NOTIFICATIONS = [
-  { id: 1, text: "Kwame Asante submitted a new verification request", time: "12 min ago" },
-  { id: 2, text: "Job \"Professional Wedding DJ\" was flagged by a user", time: "1 hour ago" },
-  { id: 3, text: "Grace Nwankwo requested a role change", time: "3 hours ago" },
-]
-
-function NotificationsMenu() {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener("mousedown", onClick)
-    return () => document.removeEventListener("mousedown", onClick)
-  }, [open])
-
+function PreviewStateMenu() {
+  const { state, setState } = usePreviewState()
+  const current = PREVIEW_OPTIONS.find((o) => o.value === state) ?? PREVIEW_OPTIONS[0]
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        aria-label="Notifications"
-        onClick={() => setOpen((o) => !o)}
-        className="relative flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      >
-        <Bell className="size-[18px]" />
-        <span className="absolute right-2 top-2 size-1.5 rounded-full bg-destructive" />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full z-20 mt-1 w-80 rounded-md border border-border bg-card py-1 shadow-[0px_10px_15px_rgba(0,0,0,0.08)]">
-          <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Notifications
-          </p>
-          {NOTIFICATIONS.map((n) => (
-            <div key={n.id} className="border-t border-border px-3 py-2.5 hover:bg-muted">
-              <p className="text-[13px] text-foreground">{n.text}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{n.time}</p>
-            </div>
-          ))}
-        </div>
+    <Popover
+      className="w-48"
+      trigger={(_, toggle) => (
+        <button
+          type="button"
+          onClick={toggle}
+          className={cn(
+            "flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-medium transition-colors",
+            state === "default" ? "text-muted-foreground hover:bg-muted hover:text-foreground" : "bg-muted-strong text-foreground",
+          )}
+        >
+          <LayoutPanelTop className="size-4" />
+          {current.label}
+        </button>
       )}
-    </div>
+    >
+      {(close) =>
+        PREVIEW_OPTIONS.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => {
+              setState(o.value)
+              close()
+            }}
+            className={cn(
+              "block w-full px-4 py-2.5 text-left text-sm hover:bg-muted",
+              state === o.value ? "font-semibold text-foreground" : "text-foreground",
+            )}
+          >
+            {o.label}
+          </button>
+        ))
+      }
+    </Popover>
   )
 }
 
 function Topbar() {
   const { pathname } = useLocation()
-  const section = `/${pathname.split("/")[1] ?? ""}`
-  const meta = PAGE_META[pathname] ?? PAGE_META[section] ?? { title: "JobRegion Admin", search: "Search…" }
   const [profileOpen, setProfileOpen] = useState(false)
 
   return (
-    <header className="flex h-16 shrink-0 items-center gap-4 bg-card px-6">
-      <h1 className="text-xl font-semibold text-foreground">{meta.title}</h1>
+    <header className="sticky top-0 z-40 h-20 border-b border-border bg-card">
+      <div className="flex h-20 items-center justify-between gap-6 px-6">
+        <Link to="/" aria-label="Jobs Region Admin, Dashboard" className="flex w-fit items-center gap-2.5">
+          <LogoMark className="h-8 w-auto" />
+          <span className="rounded-full border border-border px-2 py-0.5 text-caption font-semibold text-muted-foreground">Admin</span>
+        </Link>
 
-      <div className="relative h-9 w-80">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          placeholder={meta.search}
-          className="h-9 w-full rounded-md border border-border bg-card pl-8 pr-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:border-brand-cta"
-        />
-      </div>
+        <div className="flex items-center justify-end gap-1">
+          {PREVIEWABLE_PATHS.has(pathname) && <PreviewStateMenu />}
 
-      <div className="flex-1" />
+          <Popover
+            className="w-[380px]"
+            trigger={(_, toggle) => (
+              <button
+                type="button"
+                aria-label="Notifications"
+                onClick={toggle}
+                className="relative flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted"
+              >
+                <Bell className="size-5" strokeWidth={1.75} />
+                <span className="absolute right-2 top-2 size-2 rounded-full border-2 border-card bg-brand" />
+              </button>
+            )}
+          >
+            {(close) => (
+              <>
+                <p className="px-5 pb-2 pt-2 text-base font-semibold text-foreground">Notifications</p>
+                {NOTIFICATIONS.map((n) => (
+                  <Link key={n.id} to={n.to} onClick={close} className="flex gap-3 px-5 py-3 hover:bg-muted">
+                    <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", n.unread ? "bg-brand" : "bg-transparent")} />
+                    <span>
+                      <span className={cn("block text-sm text-foreground", n.unread && "font-semibold")}>{n.text}</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">{n.time}</span>
+                    </span>
+                  </Link>
+                ))}
+              </>
+            )}
+          </Popover>
 
-      <div className="flex items-center gap-2">
-        {PREVIEWABLE_PATHS.has(pathname) && <PreviewStateMenu />}
-
-        <NotificationsMenu />
-
-        <RowMenu
-          items={[
-            { label: "View profile", onSelect: () => setProfileOpen(true) },
-            { label: "Sign out", onSelect: () => {} },
-          ]}
-        >
-          <div className="flex items-center gap-2 rounded-md p-1.5 hover:bg-muted">
-            <Avatar name={currentAdmin.name} />
-            <ChevronDown className="size-3.5 text-muted-foreground" />
-          </div>
-        </RowMenu>
+          <Popover
+            className="w-60"
+            trigger={(_, toggle) => (
+              <button
+                type="button"
+                onClick={toggle}
+                aria-label="Account menu"
+                className="ml-1 flex items-center gap-2.5 rounded-full border border-border py-1.5 pl-3.5 pr-1.5 transition-shadow hover:shadow-[0_2px_4px_rgb(0_0_0/0.18)]"
+              >
+                <Menu className="size-4 text-foreground" />
+                <Avatar name={currentAdmin.name} className="size-8" />
+              </button>
+            )}
+          >
+            {(close) => (
+              <>
+                <div className="px-4 pb-3 pt-1">
+                  <p className="text-sm font-semibold text-foreground">{currentAdmin.name}</p>
+                  <p className="text-xs text-muted-foreground">{currentAdmin.role}</p>
+                </div>
+                <div className="border-t border-border pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileOpen(true)
+                      close()
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground hover:bg-muted"
+                  >
+                    <UserRound className="size-[18px]" strokeWidth={1.75} />
+                    Your profile
+                  </button>
+                  <button type="button" onClick={close} className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground hover:bg-muted">
+                    <LogOut className="size-[18px]" strokeWidth={1.75} />
+                    Log out
+                  </button>
+                </div>
+              </>
+            )}
+          </Popover>
+        </div>
       </div>
 
       <MyProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />

@@ -1,28 +1,39 @@
 @import "tailwindcss";
 
-@import "@fontsource/figtree/400.css";
-@import "@fontsource/figtree/500.css";
-@import "@fontsource/figtree/600.css";
-@import "@fontsource/figtree/700.css";
+@import "@fontsource-variable/geist";
 
+/*
+ * Tokens follow the Jobs Region web app (@jobs-region/tokens + apps/web globals.css), so the admin reads as the same
+ * product: white pages, hairline borders, near-black buttons for most actions, brand orange only on the main action,
+ * outlined inputs with a black focus ring, and one typeface (Geist).
+ */
 :root {
-  --background: #f9fafb;
+  --background: #ffffff;
   --card: #ffffff;
-  --foreground: #212b36;
-  --foreground-strong: #131307;
-  --muted: #f9fafb;
+  --foreground: #161c24;
+  --foreground-strong: #0a0a0a;
+  --muted: #f7f7f7;
+  --muted-strong: #f2f2f2;
   --muted-foreground: #637381;
-  --border: #eaecf0;
+  --border: #e6e8eb;
+  --input: #c4cdd5;
 
-  --primary: #000d65;
+  /* The near-black button used for most actions (the web app's "cta"). */
+  --primary: #212b36;
+  --primary-hover: #161c24;
   --primary-foreground: #ffffff;
 
-  --brand-cta: #ff8300;
-  --brand-cta-tint: rgba(255, 131, 0, 0.16);
+  --brand: #c2410c;
+  --brand-dark: #9f2d00;
+  --brand-vivid: #ff7a21;
+  --brand-cta: #c2410c;
+  --brand-cta-tint: #ffedd4;
 
   --success: #118d57;
   --warning: #b76e00;
   --destructive: #b71d18;
+  --info: #006c9c;
+  --rating: #ffab00;
 }
 
 @theme inline {
@@ -31,35 +42,154 @@
   --color-foreground: var(--foreground);
   --color-foreground-strong: var(--foreground-strong);
   --color-muted: var(--muted);
+  --color-muted-strong: var(--muted-strong);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
+  --color-input: var(--input);
 
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
 
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-vivid: var(--brand-vivid);
   --color-brand-cta: var(--brand-cta);
   --color-brand-cta-tint: var(--brand-cta-tint);
 
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-destructive: var(--destructive);
+  --color-info: var(--info);
+  --color-rating: var(--rating);
 
   --radius-xs: 6px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
+  --radius-xl: 24px;
   --radius-full: 9999px;
 
-  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  /* Airbnb-style neutral elevation: cards sit flat with a hairline border; only things that float get a soft shadow. */
+  --shadow-card: 0 6px 16px rgb(0 0 0 / 0.08);
+  --shadow-dropdown: 0 2px 16px rgb(0 0 0 / 0.12), 0 0 0 1px rgb(0 0 0 / 0.04);
+  --shadow-popover: 0 2px 12px rgb(0 0 0 / 0.1), 0 0 0 1px rgb(0 0 0 / 0.04);
+
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+
+  /* Jobs Region type scale (@jobs-region/tokens). Use these, not arbitrary px sizes. */
+  --text-display: 48px;
+  --text-display--line-height: 1.2;
+  --text-display--letter-spacing: -0.02em;
+  --text-h3: 32px;
+  --text-h3--line-height: 48px;
+  --text-h4: 24px;
+  --text-h4--line-height: 36px;
+  --text-h5: 20px;
+  --text-h5--line-height: 30px;
+  --text-h6: 18px;
+  --text-h6--line-height: 28px;
+  --text-body1: 16px;
+  --text-body1--line-height: 24px;
+  --text-body2: 14px;
+  --text-body2--line-height: 22px;
+  --text-caption: 12px;
+  --text-caption--line-height: 18px;
 }
 
-body {
-  background-color: var(--background);
+/* In the base layer so utilities like border-input and border-foreground can override the default border colour. */
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+
+  :focus-visible {
+    outline-color: var(--foreground);
+  }
+}
+
+/*
+ * Heading roles mapped onto the type scale:
+ * heading-display (Display 48) for the one hero line per page, heading-page (H3 32) for page titles,
+ * heading-section (H4 24) for sections, heading-subsection (H5 20) inside sections, heading-card (H6 18) for cards,
+ * dialogs and table group titles.
+ */
+@utility heading-display {
+  font-size: var(--text-display);
+  line-height: var(--text-display--line-height);
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--foreground);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
+}
+@utility heading-page {
+  font-size: var(--text-h3);
+  line-height: var(--text-h3--line-height);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+@utility heading-section {
+  font-size: var(--text-h4);
+  line-height: var(--text-h4--line-height);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+@utility heading-subsection {
+  font-size: var(--text-h5);
+  line-height: var(--text-h5--line-height);
+  font-weight: 600;
+  color: var(--foreground);
+}
+@utility heading-card {
+  font-size: var(--text-h6);
+  line-height: var(--text-h6--line-height);
+  font-weight: 600;
+  color: var(--foreground);
 }
 
-* {
-  border-color: var(--border);
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

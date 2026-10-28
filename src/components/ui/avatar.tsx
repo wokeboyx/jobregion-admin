@@ -1,37 +1,23 @@
 import { cn } from "@/lib/utils"
-
-const PALETTE = [
-  { bg: "bg-[#c2d6ff]", text: "text-primary", border: false },
-  { bg: "bg-primary", text: "text-white/70", border: false },
-  { bg: "bg-brand-cta", text: "text-white/80", border: false },
-  { bg: "bg-[#78716c]", text: "text-white/70", border: false },
-]
+import { photoFor } from "@/lib/photos"
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/)
   return (parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")
 }
 
-function hueIndex(name: string) {
-  let sum = 0
-  for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i)
-  return sum % PALETTE.length
-}
-
-function Avatar({ name, className }: { name: string; className?: string }) {
-  const swatch = PALETTE[hueIndex(name)]
+/** A round photo when we have one; otherwise initials on near-black, like business accounts in the app. */
+function Avatar({ name, src, className }: { name: string; src?: string; className?: string }) {
+  const photo = src ?? photoFor(name)
   return (
     <div
       data-slot="avatar"
       className={cn(
-        "flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-medium uppercase",
-        swatch.bg,
-        swatch.text,
-        swatch.border && "border border-border",
+        "flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-xs font-semibold uppercase text-white",
         className,
       )}
     >
-      {initials(name)}
+      {photo ? <img src={photo} alt="" className="size-full object-cover" /> : initials(name)}
     </div>
   )
 }
